@@ -35,7 +35,10 @@ El dataset utilizado es arXiv.org, el cual colecciona una vasta cantidad de art�
 
 ### Front-End
 
-Se utilizó React para la elaboración de la interfaz. Aquí, el usuario colocará la query y el *top k* documentos a obtener. Seguidamente, el back-end devolverá el diccionario de los datos y se mostrarán en forma de tabla. Mientras se realiza dicha búsqueda, se mostrara un contador de tiempo de espera de la consulta.
+Se utilizó React para la elaboración de la interfaz. Aquí, el usuario colocará la **query** y el **top k** documentos a obtener. Seguidamente, el back-end devolverá el diccionario de los datos y se mostrarán en forma de tabla. Mientras se realiza dicha búsqueda, se mostrara un contador de tiempo de espera de la consulta.
+
+![image](https://github.com/ByJuanDiego/db2-project-2/assets/68095284/123dd817-07f1-459f-a88f-0b2d2be7e15a)
+
 
 ## Conclusiones
 
