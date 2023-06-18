@@ -133,7 +133,7 @@ class InvertedIndex:
                     # Write current term to file
                     term = (last_min_term[0],last_min_term[2])
                     pos = outfile.tell()
-                    header.write(str(pos) + "\n")
+                    header.write(str(pos).ljust(8) + "\n")
                     outfile.write(str(term) + "\n")
                 last_min_term = min_term_tuple
             # Add next term in the ordered array of terms to the priority queue
@@ -147,7 +147,7 @@ class InvertedIndex:
             if min_heap.empty():
                 term = (last_min_term[0],last_min_term[2]) 
                 pos = outfile.tell()
-                header.write(str(pos))
+                header.write(str(pos).ljust(8))
                 outfile.write(str(term))
         # Close all block files
         for i in range(k):
@@ -197,11 +197,11 @@ class InvertedIndex:
         if input("Would you like to obtain lengths (Y/N)? ").strip().lower() == 'n':
             if input("Are you sure (Y/N)? ").strip().lower() == 'y':
                 return 0
-        with open("back\\token_stream.txt", mode="r") as token_stream, open(self.length_file_name, mode="w") as length_file, open(self.index_file_name, mode="r") as index_file:
+        with open("back\\token_stream.txt", mode="r") as token_stream_file, open(self.length_file_name, mode="w") as length_file, open(self.index_file_name, mode="r") as index_file, open(self.header_terms_file_name, mode="r") as header_term_file:
                 last_doc_id = 1
                 cum: float = 0
                 while True:
-                    line: str = token_stream.readline().strip()
+                    line: str = token_stream_file.readline().strip()
                     if not line:
                         break
                     token: Tuple[str, int, int] = literal_eval(line)
@@ -212,7 +212,7 @@ class InvertedIndex:
                         last_doc_id = doc_id
                         length_file.write(str(math.sqrt(cum)) + "\n")
                         cum = 0
-                    df_term = len(self._sequencial_search_term(index_file, term))
+                    df_term = len(self._binary_search_term(header_term_file, index_file, term))
                     cum += (math.log10(1+tf) * math.log10(self.n/df_term)) ** 2
                 length_file.write(str(math.sqrt(cum)))
                 
@@ -251,36 +251,25 @@ class InvertedIndex:
         self._spimi_index_construction()
         self._obtain_lengths()
         
-    def _sequencial_search_term(self, index_file: TextIO, term: str) -> Optional[List[Tuple[int, int]]]:
-        index_file.seek(0)
-        while True:
-            line: str = index_file.readline().strip()
-            if not line:
-                break
-            item: Tuple = literal_eval(line)
-            current_term: str = item[0] 
-            postings_list: List[Tuple[int, int]] = item[1]
-            if current_term == term:
-                return postings_list
-        return None
-        
-    def _binary_search_term_aux(self, index_file: TextIO, term: str, start: int, end: int) -> Optional[List[Tuple[int, int]]]:
+    def _binary_search_term_aux(self, header_term_file: TextIO, index_file: TextIO, term: str, start: int, end: int) -> Optional[List[Tuple[int, int]]]:
         if start > end:
             return None
         mid = math.floor((end + start) / 2)
-        index_file.seek(mid)
+        header_term_file.seek(mid*10)
+        physical_pos = int(header_term_file.read(8))
+        index_file.seek(physical_pos)
         line: str = index_file.readline()
         item: Tuple = literal_eval(line)
         current_term: str = item[0]
         if term == current_term:
             return item[1]
         elif term > current_term:
-            return self._binary_search_term(index_file, term, mid+1, end)
+            return self._binary_search_term_aux(header_term_file, index_file, term, mid+1, end)
         else:
-            return self._binary_search_term(index_file, term, start, mid)
+            return self._binary_search_term_aux(header_term_file, index_file, term, start, mid-1)
         
-    def _binary_search_term(self, index_file: TextIO, term: str) -> Optional[List[Tuple[int, int]]]:
-        return self._binary_search_term_aux(index_file, term, 0, self.n)
+    def _binary_search_term(self, header_term_file: TextIO, index_file: TextIO, term: str) -> Optional[List[Tuple[int, int]]]:
+        return self._binary_search_term_aux(header_term_file, index_file, term, 0, 1308)
     
 
     def _cosine_score(self, query: str, k: int):
@@ -294,13 +283,13 @@ class InvertedIndex:
                 doc += 1
                 lengths[doc] = float(line)
                 
-        with open(self.index_file_name) as index:
+        with open(self.index_file_name) as index_file, open(self.header_terms_file_name) as header_terms_file:
             query_processed = self._preprocess(query)
             scores: Dict[int, float] = {}
             norm_q = 0
             for query_term in query_processed:
                 tf_term_q: int = query_processed[query_term]
-                postings_list_term = self._sequencial_search_term(index, query_term)
+                postings_list_term = self._binary_search_term(header_terms_file,index_file, query_term)
                 df_term = len(postings_list_term)
                 tf_idf_t_q = math.log10(1+tf_term_q) * math.log10(self.n/df_term)
                 norm_q += tf_idf_t_q ** 2
@@ -313,12 +302,15 @@ class InvertedIndex:
             norm_q = math.sqrt(norm_q)
             for d in scores:
                 scores[d] = scores[d] / (lengths[d] * norm_q)
-            return list(sorted(scores.items(), key=lambda x: x[1], reverse=True))[:k+1]
+            return list(sorted(scores.items(), key=lambda x: x[1], reverse=True))[0:k+1]
         
 
 def main():
     mindicio = InvertedIndex("xednIdetrevnI")
+    start_time = timeit.default_timer()
     mindicio.create()
+    end_time = timeit.default_timer()
+    print(end_time - start_time)
     query = "  We give a prescription for how to compute the Callias index, using as\nregulator an exponential function. We find agreement with old results in all\nodd dimensions. We show that the problem of computing the dimension of the\nmoduli space of self-dual strings can be formulated as an index problem in\neven-dimensional (loop-)space. We think that the regulator used in this Letter\ncan be applied to this index problem.\n"
     #query = " Text about a new formulation about new material cores new formulation new material new material new material"
     start_time = timeit.default_timer()
