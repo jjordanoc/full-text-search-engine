@@ -33,6 +33,9 @@ El dataset utilizado es arXiv.org, el cual colecciona una vasta cantidad de art�
 
 ## Experimentación
 
+### Front-End
+
+Se utilizó React para la elaboración de la interfaz. Aquí, el usuario colocará la query y el *top k* documentos a obtener. Seguidamente, el back-end devolverá el diccionario de los datos y se mostrarán en forma de tabla. Mientras se realiza dicha búsqueda, se mostrara un contador de tiempo de espera de la consulta.
 
 ## Conclusiones
 
