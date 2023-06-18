@@ -40,9 +40,24 @@ Dataset extraído de [Kaggle](https://www.kaggle.com/datasets/Cornell-University
 
 ## Back-End
 
-Se utilizó la macroweb **fastAPI**, con el cual conectamos con el front-end a través de dos endpoints, las cuales son funciones que devolverán el top K de python y de postregs, llamadas **obtener_datos** y **nombre_a_insertar** respectivamente. Para eso, se interpreta la query enviada por el usuario y devuelve la data a través de un JSON.
+Se utilizó el framework **FastAPI**, con el cual conectamos con el front-end a través de dos endpoints, los cuales devolverán el top K de nuestro indice creado y PostgreSQL. Para eso, se interpreta la query enviada por el usuario y se devuelve la data a través de un JSON.
 
-![image](https://github.com/ByJuanDiego/db2-project-2/assets/68095284/5e8f9356-7039-415b-80ab-ea7edf42183b)
+### Contrucción del índice invertido
+
+En la construcción del índice invertido en memoria secundaria se utilizó el algoritmo **Single Pass In-Memory Indexing (SPIMI)**. 
+Se adaptó este algoritmo, que sirve para crear índices invertidos para el modelo de recuperación booleana, para realizar consultas por ranking.
+Para hacer esto, al momento de computar las listas de postings de cada término se agregó la frecuencia de término, que posteriormente nos ayudará a computar los pesos tf-idf para la búsqueda por texto. 
+
+Para implementar este algoritmo, se tomó como referencia la siguiente implementación de la función SPIMI-Invert: ![Referencia](https://slideplayer.com/slide/7351989/24/images/4/Merging+of+blocks+is+analogous+to+BSBI.jpg)
+
+Una vez se construyeron los índices invertidos locales usando SPIMI-Invert, se combinaron usando la estrategia de k-way merge en memoría secundaria.
+Se implementó usando un heap de tamaño k que guarda el mínimo término siendo procesado en cada documento.
+
+### Manejo de memoria secundaria
+
+Se utilizó la memoria secundaria para guardar los resultados de los índices invertidos parciales en el SPIMI-Invert, y también en el merge.
+También se utilizó la memoria secundaria para persistir cierta información relevante como la cantidad de términos en el índice invertido y la cantidad de documentos total (que nos sirve posteriormente para calcular el tf-idf). 
+
 
 ## Frontend
 
