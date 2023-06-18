@@ -378,16 +378,3 @@ class InvertedIndex:
             for d in scores:
                 scores[d] = scores[d] / (lengths[d] * norm_q)
             return list(sorted(scores.items(), key=lambda x: x[1], reverse=True))[0:k + 1]
-
-
-def main():
-    mindicio = InvertedIndex(raw_data_file_name="sample.json", index_name="inverted_index",
-                             stoplist_file_name="stoplist.txt")
-    mindicio.create()
-    query = "We give a prescription for how to compute the Callias index, using as\nregulator an exponential function. We find agreement with old results in all\nodd dimensions. We show that the problem of computing the dimension of the\nmoduli space of self-dual strings can be formulated as an index problem in\neven-dimensional (loop-)space. We think that the regulator used in this Letter\ncan be applied to this index problem.\n"
-    topk = mindicio._cosine_score(query, 5)
-    print(topk)
-
-
-if __name__ == "__main__":
-    main()
