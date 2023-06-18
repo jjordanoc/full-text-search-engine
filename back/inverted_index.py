@@ -338,7 +338,7 @@ class InvertedIndex:
         return lengths
 
     @measure_execution_time
-    def cosine_score(self, query: str, k: int):
+    def cosine_score(self, query: str, k: int) -> List[Tuple[int, float]]:
         lengths: Dict[int, float] = self._obtain_lenghts_binary(self.length_file_name)
 
         with open(self.index_file_name) as index_file, open(self.header_terms_file_name,
@@ -365,3 +365,33 @@ class InvertedIndex:
             for d in scores:
                 scores[d] = scores[d] / (lengths[d] * norm_q)
             return list(sorted(scores.items(), key=lambda x: x[1], reverse=True))[0:k]
+
+    def get_documents_from_query_result(self, query_result: List[Tuple[int, float]]) -> List[List]:
+        result = []
+
+        with open(self.doc_map_file_name, mode='rb') as doc_map_file, open(self.raw_data_file_name) as raw_data_file:
+            for doc, ranking in query_result:
+                print(doc)
+                doc_map_file.seek(doc)
+                print(struct_len_int)
+
+                physical_pos_line = doc_map_file.read(struct_len_int)
+                print(physical_pos_line)
+
+                physical_pos = int(struct_unpack_int(physical_pos_line)[0])
+                print(physical_pos)
+
+                raw_data_file.seek(physical_pos)
+                
+                line: str = raw_data_file.readline()
+
+                print(line)
+                document = json.loads(line)
+                print(document)
+                result.append([document["title"], document["abstract"], ranking])
+
+        return result
+
+#
+# with open('sample.json', 'r') as file, open('index/inverted_index_docmap.invidx', 'wb'):
+#
