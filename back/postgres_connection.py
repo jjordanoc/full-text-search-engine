@@ -7,11 +7,11 @@ basedir = path.abspath(path.dirname(__file__))
 load_dotenv(path.join(basedir, '.env'))
 
 
-def postgreSQL_insert_document(id, title, abstract):
-    return f"INSERT INTO documents(id, title, abstract) VALUES ('{id}', '{title}', '{abstract}');"
+def postgreSQL_insert_document(id, title, abstract, tablename = 'documents'):
+    return f"INSERT INTO {tablename}(id, title, abstract) VALUES ('{id}', '{title}', '{abstract}');"
 
 
-def create_table():
+def create_table(tablename):
     conn = psycopg2.connect(
         host=environ.get('POSTGRES_HOST'),
         database=environ.get('POSTGRES_DATABASE_NAME'),
@@ -21,8 +21,11 @@ def create_table():
     )
 
     cursor = conn.cursor()
-    postgreSQL_create_table = "CREATE TABLE " \
-                              "IF NOT EXISTS documents(id TEXT, title TEXT, abstract TEXT);"
+    postgreSQL_create_table = f"""CREATE TABLE IF NOT EXISTS {tablename}(
+                                    id TEXT, 
+                                    title TEXT, 
+                                    abstract TEXT
+                                    );"""
     cursor.execute(postgreSQL_create_table)
 
     conn.commit()
@@ -30,7 +33,7 @@ def create_table():
     conn.close()
 
 
-def insert_documents():
+def insert_documents(tablename = 'documents'):
     conn = psycopg2.connect(
         host=environ.get('POSTGRES_HOST'),
         database=environ.get('POSTGRES_DATABASE_NAME'),
@@ -42,8 +45,9 @@ def insert_documents():
     cursor = conn.cursor()
 
     i = 0
-    n = 2272690
-    with open('data.json', 'r') as file:
+    # n = 2272690
+    n = 1000000
+    with open('../data.json', 'r') as file:
         while i < n:
             line = file.readline()
             document = json.loads(line)
@@ -55,7 +59,9 @@ def insert_documents():
             insert = postgreSQL_insert_document(
                 docid.replace('\'', '\'\''),
                 doctitle.replace('\'', '\'\''),
-                docabstract.replace('\'', '\'\''))
+                docabstract.replace('\'', '\'\''), 
+                tablename=tablename
+                )
             cursor.execute(insert)
             i += 1
 
@@ -64,7 +70,7 @@ def insert_documents():
     conn.close()
 
 
-def create_index():
+def create_index(tablename='documents'):
     conn = psycopg2.connect(
         host=environ.get('POSTGRES_HOST'),
         database=environ.get('POSTGRES_DATABASE_NAME'),
@@ -76,17 +82,17 @@ def create_index():
     cursor = conn.cursor()
     cursor.execute('CREATE EXTENSION IF NOT EXISTS pg_trgm;')
 
-    cursor.execute("ALTER TABLE documents ADD COLUMN indexed tsvector;")
-    cursor.execute("UPDATE documents SET indexed = T.indexed FROM (\
-                    SELECT id, setweight(to_tsvector('english', title), 'A') || setweight(to_tsvector('english', abstract), 'B') AS indexed FROM documents\
-                   ) AS T WHERE documents.id = T.id;")
-    cursor.execute('CREATE INDEX IF NOT EXISTS abstract_idx_gin ON documents USING gin (indexed);')
+    cursor.execute(f"ALTER TABLE {tablename} ADD COLUMN indexed tsvector;")
+    cursor.execute(f"""UPDATE {tablename} SET indexed = T.indexed FROM (
+                    SELECT id, setweight(to_tsvector('english', title), 'A') || setweight(to_tsvector('english', abstract), 'B') AS indexed FROM {tablename}
+                   ) AS T WHERE {tablename}.id = T.id;""")
+    # cursor.execute('CREATE INDEX IF NOT EXISTS abstract_idx_gin ON documents USING gin (indexed);')
 
     conn.commit()
     cursor.close()
     conn.close()
 
 
-create_table()
-insert_documents()
-create_index()
+#create_table('documents2')
+#insert_documents('documents2')
+create_index('documents2')

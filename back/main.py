@@ -32,11 +32,11 @@ async def obtener_datos(data: dict) -> dict:
     cursor = conn.cursor()
 
     postgreSQL_select = f"""
-        SELECT title, abstract, ts_rank(indexed, query) rank
-        FROM documents, plainto_tsquery('english', '{Q}') query
-        WHERE indexed @@ query ORDER BY rank DESC LIMIT {k};
+        SELECT title, abstract, ts_rank_cd(indexed, query) rank
+        FROM documents2, plainto_tsquery('english', '{Q}') query
+        ORDER BY rank DESC LIMIT {k};
     """
-    
+
     cursor.execute(postgreSQL_select)
     response = cursor.fetchall()
 
@@ -46,16 +46,16 @@ async def obtener_datos(data: dict) -> dict:
 
 @app.post('obtener_datos2')
 async def get_top_k_academic(Q: str, k: int) -> dict:
-    mindicio = InvertedIndex(raw_data_file_name="test.json", index_name="inverted_index",
-                             stoplist_file_name="stoplist.txt")
+    mindicio = InvertedIndex(raw_data_file_name="api/test.json", index_name="inverted_index",
+                             stoplist_file_name="api/stoplist.txt")
     mindicio.create()
     response = mindicio._cosine_score(Q, k)
     return {'data': response}
 
 
 def get_top_k_academic(Q: str, k: int) -> dict:
-    mindicio = InvertedIndex(raw_data_file_name="test.json", index_name="inverted_index",
-                             stoplist_file_name="stoplist.txt")
+    mindicio = InvertedIndex(raw_data_file_name="api/test.json", index_name="inverted_index",
+                             stoplist_file_name="api/stoplist.txt")
     mindicio.create()
     topk = mindicio._cosine_score(Q, k)
     print(topk)

@@ -11,3 +11,5 @@ block2.txt
 ../.idea/
 index/
 sample.json
+data.json
+.env
