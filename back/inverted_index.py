@@ -24,9 +24,13 @@ def measure_execution_time(func):
     return wrapper
 
 
-struct_fmt = 'f'
-struct_len = struct.calcsize(struct_fmt)
-struct_unpack = struct.Struct(struct_fmt).unpack_from
+struct_ftm_float = 'f'
+struct_len_float = struct.calcsize(struct_ftm_float)
+struct_unpack_float = struct.Struct(struct_ftm_float).unpack_from
+
+struct_fmt_int = 'I'
+struct_len_int = struct.calcsize(struct_fmt_int)
+struct_unpack_int = struct.Struct(struct_fmt_int).unpack_from
 
 
 class InvertedIndex:
@@ -167,15 +171,15 @@ class InvertedIndex:
                     # add product of tf * idf squared
                     # sqrt (at the end)
                     for d, tf_t_d in posting_list:
-                        length_file.seek((d - 1) * struct_len)
-                        line = length_file.read(struct_len)
+                        length_file.seek((d - 1) * struct_len_float)
+                        line = length_file.read(struct_len_float)
                         if line:
-                            val = struct_unpack(line)[0]
+                            val = struct_unpack_float(line)[0]
                         else:
                             val = 0
                         val += (math.log10(1 + tf_t_d) * math.log10(self.n / df_t)) ** 2
                         s = struct.pack('f', val)
-                        length_file.seek((d - 1) * struct_len)
+                        length_file.seek((d - 1) * struct_len_float)
                         length_file.write(s)
                     pos = outfile.tell()
                     pos = struct.pack('I', pos)
@@ -200,15 +204,15 @@ class InvertedIndex:
                 # add product of tf * idf squared
                 # sqrt (at the end)
                 for d, tf_t_d in posting_list:
-                    length_file.seek((d - 1) * struct_len)
-                    line = length_file.read(struct_len)
+                    length_file.seek((d - 1) * struct_len_float)
+                    line = length_file.read(struct_len_float)
                     if line:
-                        val = struct_unpack(line)[0]
+                        val = struct_unpack_float(line)[0]
                     else:
                         val = 0
                     val += (tf_t_d * math.log10(self.n / df_t)) ** 2
                     s = struct.pack('f', val)
-                    length_file.seek((d - 1) * struct_len)
+                    length_file.seek((d - 1) * struct_len_float)
                     length_file.write(s)
                 pos = outfile.tell()
                 pos = struct.pack('I', pos)
@@ -296,19 +300,20 @@ class InvertedIndex:
         self._spimi_index_construction()
         # self._obtain_lengths()
 
-    def _binary_search_term_aux(self, header_term_file: BinaryIO, index_file: TextIO, term: str, start: int, end: int):
-        # -> Optional[List[Tuple[int, int]]]:
+    def _binary_search_term_aux(self, header_term_file: BinaryIO, index_file: TextIO, term: str, start: int,
+                                end: int) -> Optional[List[Tuple[int, int]]]:
         if start > end:
             return None
         mid = math.floor((end + start) / 2)
         header_term_file.seek(mid * 4)
-        physical_pos = int(struct.unpack('I', header_term_file.read(4))[0])
+        header_file_line = header_term_file.read(struct_len_int)
+        physical_pos = int(struct_unpack_int(header_file_line)[0])
         index_file.seek(physical_pos)
         line: str = index_file.readline()
         item: Tuple = literal_eval(line)
         current_term: str = item[0]
         if term == current_term:
-            return item[2] - 1, item[1]
+            return item[1]
         elif term > current_term:
             return self._binary_search_term_aux(header_term_file, index_file, term, mid + 1, end)
         else:
@@ -324,16 +329,16 @@ class InvertedIndex:
         with open(lenght_file, mode="rb") as length_file:
             doc = 0
             while True:
-                line = length_file.read(struct_len)
+                line = length_file.read(struct_len_float)
                 if not line:
                     break
                 doc += 1
                 # These values are raw (no sqrt)
-                lengths[doc] = math.sqrt(struct_unpack(line)[0])
+                lengths[doc] = math.sqrt(struct_unpack_float(line)[0])
         return lengths
 
     @measure_execution_time
-    def _cosine_score(self, query: str, k: int):
+    def cosine_score(self, query: str, k: int):
         lengths: Dict[int, float] = self._obtain_lenghts_binary(self.length_file_name)
 
         with open(self.index_file_name) as index_file, open(self.header_terms_file_name,
@@ -341,12 +346,10 @@ class InvertedIndex:
             query_processed = self._preprocess(query)
             scores: Dict[int, float] = {}
             norm_q = 0
-            start_pivot = 0
             query_processed = dict(sorted(query_processed.items(), key=lambda x: x[0], reverse=False))
             for query_term in query_processed:
                 tf_term_q: int = query_processed[query_term]
-                start_pivot, postings_list_term = self._binary_search_term_aux(header_terms_file, index_file,
-                                                                               query_term, 0, self.total_terms)
+                postings_list_term = self._binary_search_term(header_terms_file, index_file, query_term)
                 df_term = len(postings_list_term)
                 tf_idf_t_q = math.log10(1 + tf_term_q) * math.log10(self.n / df_term)
                 norm_q += tf_idf_t_q ** 2
@@ -363,12 +366,12 @@ class InvertedIndex:
 
 
 def main():
-    mindicio = InvertedIndex(raw_data_file_name="C:/Users/Jose/Desktop/arxiv-metadata-oai-snapshot.json",
-                             index_name="inverted_index",
-                             stoplist_file_name="stoplist.txt")
-    # mindicio.create()
+    index = InvertedIndex(raw_data_file_name="test.json",
+                          index_name="inverted_index",
+                          stoplist_file_name="stoplist.txt")
+
     query = "  A fully differential calculation in perturbative quantum chromodynamics is\npresented for the production of massive photon pairs at hadron colliders. All\nnext-to-leading order perturbative contributions from quark-antiquark,\ngluon-(anti)quark, and gluon-gluon subprocesses are included, as well as\nall-orders resummation of initial-state gluon radiation valid at\nnext-to-next-to-leading logarithmic accuracy. The region of phase space is\nspecified in which the calculation is most reliable. Good agreement is\ndemonstrated with data from the Fermilab Tevatron, and predictions are made for\nmore detailed tests with CDF and DO data. Predictions are shown for\ndistributions of diphoton pairs produced at the energy of the Large Hadron\nCollider (LHC). Distributions of the diphoton pairs from the decay of a Higgs\nboson are contrasted with those produced from QCD processes at the LHC, showing\nthat enhanced sensitivity to the signal can be obtained with judicious\nselection of events.\n"
-    topk = mindicio._cosine_score(query, 5)
+    topk = index.cosine_score(query, 5)
     print(topk)
 
 

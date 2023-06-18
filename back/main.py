@@ -14,6 +14,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+DATA_FILE_PATH = "test.json"
+INDEX_NAME = "inverted_index"
+STOPLIST_FILE_PATH = "stoplist.txt"
+
 
 @app.post('/obtener_datos')
 async def obtener_datos(data: dict) -> dict:
@@ -43,23 +47,33 @@ async def obtener_datos(data: dict) -> dict:
     return {'data': response}
 
 
-@app.post('obtener_datos2')
-async def get_top_k_invidx(Q: str, k: int) -> dict:
-    mindicio = InvertedIndex(raw_data_file_name="api/test.json", index_name="inverted_index",
-                             stoplist_file_name="api/stoplist.txt")
-    mindicio.create()
-    response = mindicio._cosine_score(Q, k)
-    return {'data': response}
+@app.post('/obtener_datos2')
+async def get_top_k_invidx(q: str, k: int) -> dict:
+    try:
+        index = InvertedIndex(raw_data_file_name=DATA_FILE_PATH, index_name=INDEX_NAME,
+                              stoplist_file_name=STOPLIST_FILE_PATH)
+        response = index.cosine_score(query=q, k=k)
+        return {'data': response}
+    except Exception as e:
+        print(e)
+        return {'data': None}
 
 
-def get_top_k_academic(Q: str, k: int) -> dict:
-    mindicio = InvertedIndex(raw_data_file_name="api/test.json", index_name="inverted_index",
-                             stoplist_file_name="api/stoplist.txt")
-    mindicio.create()
-    topk = mindicio._cosine_score(Q, k)
+@app.post('/create_index')
+async def create_index() -> dict:
+    index = InvertedIndex(raw_data_file_name=DATA_FILE_PATH, index_name=INDEX_NAME,
+                          stoplist_file_name=STOPLIST_FILE_PATH)
+    index.create()
+    return {'response': 200}
+
+
+def get_top_k_academic(q: str, k: int) -> None:
+    index = InvertedIndex(raw_data_file_name=DATA_FILE_PATH, index_name=INDEX_NAME,
+                          stoplist_file_name=STOPLIST_FILE_PATH)
+    topk = index.cosine_score(q, k)
     print(topk)
 
 
 
-# query = "We give a prescription for how to compute the Callias index, using as\nregulator an exponential function. We find agreement with old results in all\nodd dimensions. We show that the problem of computing the dimension of the\nmoduli space of self-dual strings can be formulated as an index problem in\neven-dimensional (loop-)space. We think that the regulator used in this Letter\ncan be applied to this index problem.\n"
+# query = "We give a prescription for how to compute the Callias index, using as\nregulator an exponential function.We find agreement with old results in all\nodd dimensions. We show that the problem of computing the dimension ofthe\nmoduli space of self-dual strings can be formulated as an index problem in\neven-dimensional (loop-)space. Wethink that the regulator used in this Letter\ncan be applied to this index problem.\n"
 # get_top_k_academic(query, 3)
