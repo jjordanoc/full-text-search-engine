@@ -1,50 +1,53 @@
-import nltk
-import numpy as np
-from nltk.stem.snowball import SnowballStemmer
-import re
 import json
-from ast import literal_eval
-from nltk.tokenize import RegexpTokenizer
-from typing import List
-import sys
-import os
-from typing import List, TextIO, Tuple, Optional, Dict
-from Heap import MinHeap
 import math
+import os
 import timeit
-import struct
-from objsize import get_deep_size
-# Unused
-PAGE_SIZE = 128000000 #128MB
-# Used in SPIMI
-MAX_TERM_AVAILABLE = 1000 #1000000
+from ast import literal_eval
+from typing import List, TextIO, Tuple, Optional, Dict
 
-# Stemmer for reducing english words into their word stem
-stemmer = SnowballStemmer('english')
-# Filter to just accept words with normal letter, capital letter and also tildes
-tokenizer = RegexpTokenizer(r'[a-zA-ZÀ-ÿ]+')
+from nltk.stem.snowball import SnowballStemmer
+from nltk.tokenize import RegexpTokenizer
 
-stopwords = open("back\stoplist.txt","r",encoding="utf-8")
-lower_stopword_list = [tk.lower() for tk in tokenizer.tokenize(stopwords.read())]
-stopwords = set(lower_stopword_list)
-
-
-
-
+from Heap import MinHeap
 
 
 class InvertedIndex:
 
-    def __init__(self, collection_path: str, filename: str = "myindex"):
-        self.doc_map_file_name = filename + "_docmap.invidx"
-        self.index_file_name = filename + "_index.invidx"
-        self.length_file_name = filename + "_length.invidx"
-        self.collection_path = collection_path
-        self.n_file_name = filename + "_n.invidx"
-        self.header_terms_file_name = filename + "_header_terms.invidx"
+    def __init__(self, raw_data_file_name: str, stoplist_file_name: str = "", index_name: str = "myindex"):
+        self.raw_data_file_name = raw_data_file_name
+        index_name = "index/" + index_name
+        # File that maps document ids to actual documents
+        self.doc_map_file_name = index_name + "_docmap.invidx"
+        # File that stores the terms and their posting lists
+        self.index_file_name = index_name + "_index.invidx"
+        # File that stores the norm of the tf_idf vectors of each document
+        self.length_file_name = index_name + "_length.invidx"
+        # File that stores the number of documents
+        self.n_file_name = index_name + "_n.invidx"
+        # File that maps the logical position of each term in the inverted index to its physical position
+        self.header_terms_file_name = index_name + "_header_terms.invidx"
+
+        # Temporary file that collects tokens
+        self.token_stream_file_name = index_name + "token_stream.invidxtmp"
+        # Temporary file that stores each block to merge during SPIMI Invert
+        self.block_file_name = lambda block_number: f"{index_name}_block{block_number}.invidxtmp"
+
+        # Other constants
+        self.spimi_max_terms_per_hash = 1000
+        # Stemmer for reducing english words into their word stem
+        self.stemmer = SnowballStemmer('english')
+        # Filter to just accept words with normal letter, capital letter and also tildes
+        self.tokenizer = RegexpTokenizer(r'[a-zA-ZÀ-ÿ]+')
+        # Stowords
+        self.stopwords = None
+        if stoplist_file_name != "":
+            with open(stoplist_file_name) as stoplist:
+                lower_stopword_list = [tk.lower() for tk in self.tokenizer.tokenize(stoplist.read())]
+                self.stopwords = set(lower_stopword_list)
+
         if os.path.exists(self.n_file_name):
-           with open(self.n_file_name, mode = "r") as n_file:
-            self.n = int(n_file.readline())
+            with open(self.n_file_name, mode="r") as n_file:
+                self.n = int(n_file.readline())
         else:
             self.n = 0
 
@@ -54,13 +57,13 @@ class InvertedIndex:
         (term, doc_id, term_frequency) #doc_id: posicion logica
     """
 
-    def _preprocess(self, texto: str) -> Dict[str,int]:
+    def _preprocess(self, texto: str) -> Dict[str, int]:
         # tokenizar
-        lower_token_list = [tk.lower() for tk in tokenizer.tokenize(texto)]
+        lower_token_list = [tk.lower() for tk in self.tokenizer.tokenize(texto)]
         # filtrar stopwords y contar
         tokens_count = dict()
         for tk in lower_token_list:
-            if tk not in stopwords:
+            if tk not in self.stopwords:
                 if tk in tokens_count:
                     tokens_count[tk] += 1
                 else:
@@ -68,42 +71,38 @@ class InvertedIndex:
         # reducir palabras y agrupar
         stemmed_tokens_count = dict()
         for tk in tokens_count:
-            stemmed = stemmer.stem(tk)
+            stemmed = self.stemmer.stem(tk)
             if stemmed in stemmed_tokens_count:
                 stemmed_tokens_count[stemmed] += tokens_count[tk]
             else:
                 stemmed_tokens_count[stemmed] = tokens_count[tk]
         return stemmed_tokens_count
-    
-    def _preprocess_documents(self):
+
+    def _preprocess_documents(self) -> None:
         # Set n to 0
         self.n = 0
-        with open("back\\test.json") as file:
-            header_file = open("back\header.txt",mode="w")
-            token_stream_file = open("back\\token_stream.txt",mode="w")
+        with open(self.raw_data_file_name) as file, open(self.doc_map_file_name, mode="w") as header_file, open(
+                self.token_stream_file_name, mode="w") as token_stream_file:
             logic_pos = 1
             longitud = 0
             while True:
                 line = file.readline().strip()
                 if not line:
-                    header_file.close()
-                    token_stream_file.close()
                     break
-                posicion_logica = str(logic_pos).ljust(8)    
-                posicion_fisica = str(longitud)           
+                posicion_logica = str(logic_pos).ljust(8)
+                posicion_fisica = str(longitud)
                 header_file.write(f"{posicion_logica}{posicion_fisica}\n")
                 longitud += len(line)
                 line = json.loads(line)
                 documento_procesado = self._preprocess(line["abstract"])
-                documento_procesado = dict(sorted(documento_procesado.items(), key=lambda x: x[0],reverse=False))
+                documento_procesado = dict(sorted(documento_procesado.items(), key=lambda x: x[0], reverse=False))
                 for key in documento_procesado:
                     token_stream_file.write(f"('{key}',{logic_pos},{documento_procesado[key]})\n")
                 logic_pos += 1
                 self.n += 1
         # Name's file where is the information as (term, doc_id, term_frequency)
-        with open(self.n_file_name, mode = "w") as n_file:
+        with open(self.n_file_name, mode="w") as n_file:
             n_file.write(str(self.n))
-        return "back\\token_stream.txt"
 
     def _merge_blocks(self, blocks: List[str]) -> None:
         outfile = open(self.index_file_name, "w")
@@ -131,7 +130,7 @@ class InvertedIndex:
             else:
                 if last_min_term is not None:
                     # Write current term to file
-                    term = (last_min_term[0],last_min_term[2])
+                    term = (last_min_term[0], last_min_term[2])
                     pos = outfile.tell()
                     header.write(str(pos).ljust(8) + "\n")
                     outfile.write(str(term) + "\n")
@@ -145,14 +144,13 @@ class InvertedIndex:
                 min_heap.push((next_min_term_tuple[0], i, next_min_term_tuple[1]))
             # Write the final term
             if min_heap.empty():
-                term = (last_min_term[0],last_min_term[2]) 
+                term = (last_min_term[0], last_min_term[2])
                 pos = outfile.tell()
                 header.write(str(pos).ljust(8))
                 outfile.write(str(term))
         # Close all block files
         for i in range(k):
             block_files[i].close()
-
 
     """ Expected results---
     Primary memory (dictionary):
@@ -166,60 +164,64 @@ class InvertedIndex:
     """
 
     # Single-pass in-memory indexing algorithm
-    def _spimi_invert(self, number_block: int, token_stream_file) -> None:
+    def _spimi_invert(self, block_number: int, token_stream_file) -> None:
         # New output file
-        output_file = open(f"back\\block{number_block}.txt",mode="w")
+        output_file = open(self.block_file_name(block_number), mode="w")
         # New hash
         dictionary = {}
-        while (len(dictionary) < MAX_TERM_AVAILABLE):
+        while len(dictionary) < self.spimi_max_terms_per_hash:
             term = token_stream_file.readline()[:-1]
             if not term:
                 break
             term = literal_eval(term)
             if term[0] not in dictionary:
-                dictionary[term[0]] = [(term[1],term[2])]
+                dictionary[term[0]] = [(term[1], term[2])]
             else:
-                dictionary[term[0]].append((term[1],term[2]))
+                dictionary[term[0]].append((term[1], term[2]))
             # Line 8 and 9 from pseudocode are skipped because dictionaries in Python are dynamic.  
         # Line 11 from pseudocode is skipped because in the preproccesing token_stream.txt is already sorted.
-        dictionary = dict(sorted(dictionary.items(), key= lambda x: x[0], reverse=False)) # changes block
+        dictionary = dict(sorted(dictionary.items(), key=lambda x: x[0], reverse=False))  # changes block
         # This logic is necessary to avoid writing a skip line at the eof
         for term_key in dictionary:
             if term_key == list(dictionary)[-1]:
                 output_file.write(f"('{term_key}',{dictionary[term_key]})")
             else:
                 output_file.write(f"('{term_key}',{dictionary[term_key]})\n")
-        # Line 13 skipped from pseudocode, no need to return the file (?) as it is writted lol. But we can close it as a good student :)
+        # Line 13 skipped from pseudocode, no need to return the file (?) as it is writted lol. But we can close it
+        # as a good student :)
         output_file.close()
-
 
     def _obtain_lengths(self) -> None:
         if input("Would you like to obtain lengths (Y/N)? ").strip().lower() == 'n':
             if input("Are you sure (Y/N)? ").strip().lower() == 'y':
-                return 0
-        with open("back\\token_stream.txt", mode="r") as token_stream_file, open(self.length_file_name, mode="w") as length_file, open(self.index_file_name, mode="r") as index_file, open(self.header_terms_file_name, mode="r") as header_term_file:
-                last_doc_id = 1
-                cum: float = 0
-                while True:
-                    line: str = token_stream_file.readline().strip()
-                    if not line:
-                        break
-                    token: Tuple[str, int, int] = literal_eval(line)
-                    term: str = token[0]
-                    doc_id: int = token[1]
-                    tf: int = token[2]
-                    if doc_id != last_doc_id:
-                        last_doc_id = doc_id
-                        length_file.write(str(math.sqrt(cum)) + "\n")
-                        cum = 0
-                    df_term = len(self._binary_search_term(header_term_file, index_file, term))
-                    cum += (math.log10(1+tf) * math.log10(self.n/df_term)) ** 2
-                length_file.write(str(math.sqrt(cum)))
-                
+                return
+        with open(self.token_stream_file_name, mode="r") as token_stream_file, open(self.length_file_name,
+                                                                                    mode="w") as length_file, open(
+            self.index_file_name, mode="r") as index_file, open(self.header_terms_file_name,
+                                                                mode="r") as header_term_file:
+            last_doc_id = 1
+            cum: float = 0
+            while True:
+                line: str = token_stream_file.readline().strip()
+                if not line:
+                    break
+                token: Tuple[str, int, int] = literal_eval(line)
+                term: str = token[0]
+                doc_id: int = token[1]
+                tf: int = token[2]
+                if doc_id != last_doc_id:
+                    last_doc_id = doc_id
+                    length_file.write(str(math.sqrt(cum)) + "\n")
+                    cum = 0
+                df_term = len(self._binary_search_term(header_term_file, index_file, term))
+                cum += (math.log10(1 + tf) * math.log10(self.n / df_term)) ** 2
+            length_file.write(str(math.sqrt(cum)))
+
     """
         Build the inverted index file with the collection using
         Single Pass In-Memory Indexing
     """
+
     def _spimi_index_construction(self):
         if input("Would you like to construct index (Y/N)? ").strip().lower() == 'n':
             if input("Are you sure (Y/N)? ").strip().lower() == 'y':
@@ -227,35 +229,36 @@ class InvertedIndex:
         # Define id for block
         n = 0
         # Ask user if is necessary to preprocess
-        token_stream = self._preprocess_documents()
+        self._preprocess_documents()
         # Open the token_stream_file where we are going to construct our index
-        token_stream_file = open(token_stream,mode="r")
-        # Define some variables to determinate if the actual file is at eof
-        last_pos = token_stream_file.tell()
-        line = token_stream_file.readline().strip()
-        # Declare a list where will be block name as merge_blocks() function requires it
-        blocks = []
-        while line != '':
-            token_stream_file.seek(last_pos)
-            # Change block id
-            n += 1
-            blocks.append(f"back\\block{n}.txt")
-            self._spimi_invert(n,token_stream_file)
-            # Redefine variables to determinate if the actual file is at eof
+        with open(self.token_stream_file_name, mode="r") as token_stream_file:
+            # Define some variables to determinate if the actual file is at eof
             last_pos = token_stream_file.tell()
             line = token_stream_file.readline().strip()
-        # Proceed to merge all blocks in the list
-        self._merge_blocks(blocks)
-    
+            # Declare a list where will be block name as merge_blocks() function requires it
+            blocks = []
+            while line != '':
+                token_stream_file.seek(last_pos)
+                # Change block id
+                n += 1
+                blocks.append(self.block_file_name(n))
+                self._spimi_invert(n, token_stream_file)
+                # Redefine variables to determinate if the actual file is at eof
+                last_pos = token_stream_file.tell()
+                line = token_stream_file.readline().strip()
+            # Proceed to merge all blocks in the list
+            self._merge_blocks(blocks)
+
     def create(self):
         self._spimi_index_construction()
         self._obtain_lengths()
-        
-    def _binary_search_term_aux(self, header_term_file: TextIO, index_file: TextIO, term: str, start: int, end: int) -> Optional[List[Tuple[int, int]]]:
+
+    def _binary_search_term_aux(self, header_term_file: TextIO, index_file: TextIO, term: str, start: int, end: int) -> \
+            Optional[List[Tuple[int, int]]]:
         if start > end:
             return None
         mid = math.floor((end + start) / 2)
-        header_term_file.seek(mid*10)
+        header_term_file.seek(mid * 10)
         physical_pos = int(header_term_file.read(8))
         index_file.seek(physical_pos)
         line: str = index_file.readline()
@@ -264,13 +267,13 @@ class InvertedIndex:
         if term == current_term:
             return item[1]
         elif term > current_term:
-            return self._binary_search_term_aux(header_term_file, index_file, term, mid+1, end)
+            return self._binary_search_term_aux(header_term_file, index_file, term, mid + 1, end)
         else:
-            return self._binary_search_term_aux(header_term_file, index_file, term, start, mid-1)
-        
-    def _binary_search_term(self, header_term_file: TextIO, index_file: TextIO, term: str) -> Optional[List[Tuple[int, int]]]:
+            return self._binary_search_term_aux(header_term_file, index_file, term, start, mid - 1)
+
+    def _binary_search_term(self, header_term_file: TextIO, index_file: TextIO, term: str) -> Optional[
+        List[Tuple[int, int]]]:
         return self._binary_search_term_aux(header_term_file, index_file, term, 0, 1308)
-    
 
     def _cosine_score(self, query: str, k: int):
         lengths: Dict[int, float] = {}
@@ -282,19 +285,19 @@ class InvertedIndex:
                     break
                 doc += 1
                 lengths[doc] = float(line)
-                
+
         with open(self.index_file_name) as index_file, open(self.header_terms_file_name) as header_terms_file:
             query_processed = self._preprocess(query)
             scores: Dict[int, float] = {}
             norm_q = 0
             for query_term in query_processed:
                 tf_term_q: int = query_processed[query_term]
-                postings_list_term = self._binary_search_term(header_terms_file,index_file, query_term)
+                postings_list_term = self._binary_search_term(header_terms_file, index_file, query_term)
                 df_term = len(postings_list_term)
-                tf_idf_t_q = math.log10(1+tf_term_q) * math.log10(self.n/df_term)
+                tf_idf_t_q = math.log10(1 + tf_term_q) * math.log10(self.n / df_term)
                 norm_q += tf_idf_t_q ** 2
                 for d, tf_term_d in postings_list_term:
-                    tf_idf_t_d = math.log10(1+tf_term_d) * math.log10(self.n/df_term)
+                    tf_idf_t_d = math.log10(1 + tf_term_d) * math.log10(self.n / df_term)
                     if d in scores:
                         scores[d] += tf_idf_t_d * tf_idf_t_q
                     else:
@@ -302,8 +305,8 @@ class InvertedIndex:
             norm_q = math.sqrt(norm_q)
             for d in scores:
                 scores[d] = scores[d] / (lengths[d] * norm_q)
-            return list(sorted(scores.items(), key=lambda x: x[1], reverse=True))[0:k+1]
-        
+            return list(sorted(scores.items(), key=lambda x: x[1], reverse=True))[0:k + 1]
+
 
 def main():
     mindicio = InvertedIndex("xednIdetrevnI")
@@ -312,9 +315,9 @@ def main():
     end_time = timeit.default_timer()
     print(end_time - start_time)
     query = "  We give a prescription for how to compute the Callias index, using as\nregulator an exponential function. We find agreement with old results in all\nodd dimensions. We show that the problem of computing the dimension of the\nmoduli space of self-dual strings can be formulated as an index problem in\neven-dimensional (loop-)space. We think that the regulator used in this Letter\ncan be applied to this index problem.\n"
-    #query = " Text about a new formulation about new material cores new formulation new material new material new material"
+    # query = " Text about a new formulation about new material cores new formulation new material new material new material"
     start_time = timeit.default_timer()
-    topk = mindicio._cosine_score(query,5)
+    topk = mindicio._cosine_score(query, 5)
     end_time = timeit.default_timer()
     print(topk)
     print(end_time - start_time)
@@ -322,4 +325,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

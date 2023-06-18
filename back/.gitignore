@@ -1,3 +1,11 @@
 venv
 arxiv-metadata-oai-snapshot.json
 __pycache__
+.idea
+*.invidx
+token_stream.txt
+header.txt
+block1.txt
+block2.txt
+../.idea
+../.idea/
