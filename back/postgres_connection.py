@@ -91,8 +91,3 @@ def create_index(tablename='documents'):
     conn.commit()
     cursor.close()
     conn.close()
-
-
-#create_table('documents2')
-#insert_documents('documents2')
-create_index('documents2')

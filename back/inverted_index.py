@@ -350,6 +350,8 @@ class InvertedIndex:
             for query_term in query_processed:
                 tf_term_q: int = query_processed[query_term]
                 postings_list_term = self._binary_search_term(header_terms_file, index_file, query_term)
+                if postings_list_term is None:
+                    continue
                 df_term = len(postings_list_term)
                 tf_idf_t_q = math.log10(1 + tf_term_q) * math.log10(self.n / df_term)
                 norm_q += tf_idf_t_q ** 2
@@ -362,18 +364,4 @@ class InvertedIndex:
             norm_q = math.sqrt(norm_q)
             for d in scores:
                 scores[d] = scores[d] / (lengths[d] * norm_q)
-            return list(sorted(scores.items(), key=lambda x: x[1], reverse=True))[0:k + 1]
-
-
-def main():
-    index = InvertedIndex(raw_data_file_name="test.json",
-                          index_name="inverted_index",
-                          stoplist_file_name="stoplist.txt")
-
-    query = "  A fully differential calculation in perturbative quantum chromodynamics is\npresented for the production of massive photon pairs at hadron colliders. All\nnext-to-leading order perturbative contributions from quark-antiquark,\ngluon-(anti)quark, and gluon-gluon subprocesses are included, as well as\nall-orders resummation of initial-state gluon radiation valid at\nnext-to-next-to-leading logarithmic accuracy. The region of phase space is\nspecified in which the calculation is most reliable. Good agreement is\ndemonstrated with data from the Fermilab Tevatron, and predictions are made for\nmore detailed tests with CDF and DO data. Predictions are shown for\ndistributions of diphoton pairs produced at the energy of the Large Hadron\nCollider (LHC). Distributions of the diphoton pairs from the decay of a Higgs\nboson are contrasted with those produced from QCD processes at the LHC, showing\nthat enhanced sensitivity to the signal can be obtained with judicious\nselection of events.\n"
-    topk = index.cosine_score(query, 5)
-    print(topk)
-
-
-if __name__ == "__main__":
-    main()
+            return list(sorted(scores.items(), key=lambda x: x[1], reverse=True))[0:k]
