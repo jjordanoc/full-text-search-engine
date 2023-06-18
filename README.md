@@ -46,6 +46,8 @@ Interfaz al buscar una query
 
 Se utilizó la macroweb **fastAPI**, con el cual conectamos con el front-end a través de dos endpoints, las cuales son funciones que devolverán el top K de python y de postregs, llamadas **obtener_datos** y **nombre_a_insertar** respectivamente. Para eso, se interpreta la query enviada por el usuario y devuelve la data a través de un JSON.
 
+![image](https://github.com/ByJuanDiego/db2-project-2/assets/68095284/5e8f9356-7039-415b-80ab-ea7edf42183b)
+
 ## Conclusiones
 
 
