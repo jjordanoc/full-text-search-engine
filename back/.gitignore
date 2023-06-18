@@ -1,2 +1,3 @@
 venv
 arxiv-metadata-oai-snapshot.json
+__pycache__

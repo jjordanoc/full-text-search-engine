@@ -8,13 +8,17 @@ from nltk.tokenize import RegexpTokenizer
 from typing import List
 import sys
 import os
-from typing import List, TextIO, Tuple, Optional
+from typing import List, TextIO, Tuple, Optional, Dict
 from Heap import MinHeap
-
+import math
+import timeit
+import struct
+from objsize import get_deep_size
 # Unused
-MAX_MEMORY_AVAILABLE = 256000000 #256MB
+PAGE_SIZE = 128000000 #128MB
 # Used in SPIMI
 MAX_TERM_AVAILABLE = 1000 #1000000
+
 # Stemmer for reducing english words into their word stem
 stemmer = SnowballStemmer('english')
 # Filter to just accept words with normal letter, capital letter and also tildes
@@ -25,26 +29,7 @@ lower_stopword_list = [tk.lower() for tk in tokenizer.tokenize(stopwords.read())
 stopwords = set(lower_stopword_list)
 
 
-def preprocesamiento(texto):
-  # tokenizar
-  lower_token_list = [tk.lower() for tk in tokenizer.tokenize(texto)]
-  # filtrar stopwords y contar
-  tokens_count = dict()
-  for tk in lower_token_list:
-    if tk not in stopwords:
-        if tk in tokens_count:
-            tokens_count[tk] += 1
-        else:
-            tokens_count[tk] = 1
-  # reducir palabras y agrupar
-  stemmed_tokens_count = dict()
-  for tk in tokens_count:
-    stemmed = stemmer.stem(tk)
-    if stemmed in stemmed_tokens_count:
-        stemmed_tokens_count[stemmed] += tokens_count[tk]
-    else:
-        stemmed_tokens_count[stemmed] = tokens_count[tk]
-  return stemmed_tokens_count
+
 
 
 
@@ -53,64 +38,90 @@ class InvertedIndex:
     def __init__(self, collection_path: str, filename: str = "myindex"):
         self.doc_map_file_name = filename + "_docmap.invidx"
         self.index_file_name = filename + "_index.invidx"
-        self.idf_file_name = filename + "_idf.invidx"
         self.length_file_name = filename + "_length.invidx"
         self.collection_path = collection_path
+        self.n_file_name = filename + "_n.invidx"
+        if os.path.exists(self.n_file_name):
+           with open(self.n_file_name, mode = "r") as n_file:
+            self.n = int(n_file.readline())
+        else:
+            self.n = 0
 
     """
         Preprocess all documents, and create a temporary
         file containing the following information:
         (term, doc_id, term_frequency) #doc_id: posicion logica
     """
-    def _preprocess(self):
+
+    def _preprocess(self, texto: str) -> Dict[str,int]:
+        # tokenizar
+        lower_token_list = [tk.lower() for tk in tokenizer.tokenize(texto)]
+        # filtrar stopwords y contar
+        tokens_count = dict()
+        for tk in lower_token_list:
+            if tk not in stopwords:
+                if tk in tokens_count:
+                    tokens_count[tk] += 1
+                else:
+                    tokens_count[tk] = 1
+        # reducir palabras y agrupar
+        stemmed_tokens_count = dict()
+        for tk in tokens_count:
+            stemmed = stemmer.stem(tk)
+            if stemmed in stemmed_tokens_count:
+                stemmed_tokens_count[stemmed] += tokens_count[tk]
+            else:
+                stemmed_tokens_count[stemmed] = tokens_count[tk]
+        return stemmed_tokens_count
+    
+    def _preprocess_documents(self):
+        # Set n to 0
+        self.n = 0
         with open("back\\test.json") as file:
             header_file = open("back\header.txt",mode="w")
             token_stream_file = open("back\\token_stream.txt",mode="w")
-            logicPos = 1
+            logic_pos = 1
             longitud = 0
             while True:
-                line = file.readline()
+                line = file.readline().strip()
                 if not line:
                     header_file.close()
                     token_stream_file.close()
                     break
-                posicion_logica = str(logicPos).ljust(8)    
+                posicion_logica = str(logic_pos).ljust(8)    
                 posicion_fisica = str(longitud)           
-                # Just if we know exactly the quantity of docs to avoid writing skip line at the end of header_file
-                docs = 10000000
-                if logicPos == docs:
-                    header_file.write(f"{posicion_logica}{posicion_fisica}")
-                else:
-                    header_file.write(f"{posicion_logica}{posicion_fisica}\n")
+                header_file.write(f"{posicion_logica}{posicion_fisica}\n")
                 longitud += len(line)
                 line = json.loads(line)
-                documento_procesado = preprocesamiento(line["abstract"])
+                documento_procesado = self._preprocess(line["abstract"])
                 documento_procesado = dict(sorted(documento_procesado.items(), key=lambda x: x[0],reverse=False))
-                # Just if we know exactly the quantity of docs to avoid writing skip line at the end of token_stream_file
-                if logicPos == docs:
-                    for key in documento_procesado:
-                        if key == list(documento_procesado)[-1]:
-                            token_stream_file.write(f"('{key}',{logicPos},{documento_procesado[key]})")
-                        else:
-                            token_stream_file.write(f"('{key}',{logicPos},{documento_procesado[key]})\n")
-                else:
-                    for key in documento_procesado:
-                        token_stream_file.write(f"('{key}',{logicPos},{documento_procesado[key]})\n")
-
-                logicPos += 1
+                for key in documento_procesado:
+                    token_stream_file.write(f"('{key}',{logic_pos},{documento_procesado[key]})\n")
+                logic_pos += 1
+                self.n += 1
         # Name's file where is the information as (term, doc_id, term_frequency)
+        with open(self.n_file_name, mode = "w") as n_file:
+            n_file.write(str(self.n))
         return "back\\token_stream.txt"
 
+    def _merge_blocks(self, blocks: List[str]) -> None:
+        def write_buffer_to_file(buffer: bytearray, file):
+            # Pad the buffer if necessary
+            padding = b"\x00" * (PAGE_SIZE - len(buffer) % PAGE_SIZE)
+            buffer += padding
 
-    def merge_blocks(self, blocks: List[str]) -> None:
-        outfile = open(self.index_file_name, "w")
+            # Write the buffer to the file
+            file.write(buffer)
+        
+        outfile = open(self.index_file_name, "wb")
         min_heap = MinHeap[Tuple]()
         k: int = len(blocks)
+        write_buffer = bytearray()
         # Buffer of BLOCK_SIZE to hold elements of each
         block_files: List[TextIO] = []
         # Open all block files and extract initialize min heap of size k
         for i in range(k):
-            block_files.append(open(blocks[i]))
+            block_files.append(open(blocks[i], mode="r"))
             # min_term_tuple: (term, postings_list)
             min_term_tuple = literal_eval(block_files[i].readline())
             # heap elements: (term, block, postings_list)
@@ -126,8 +137,19 @@ class InvertedIndex:
             # Otherwise, write the current lowest term to disk, and start processing the next term
             else:
                 if last_min_term is not None:
-                    # Write current term to file
-                    outfile.write(str(last_min_term) + "\n")
+                    s = bytes(last_min_term[0], 'utf-8')
+                    term_bytes = struct.pack('{}s'.format(len(s)), s)
+                    for term_tuple in last_min_term[2]:
+                        encoded_tuple = struct.pack("II", term_tuple[0], term_tuple[1])
+                        term_bytes += encoded_tuple
+                    if len(write_buffer) + len(term_bytes) < PAGE_SIZE:
+                        # Append current term to the buffer
+                        write_buffer.extend(term_bytes)
+                    else:
+                        # Write current buffer to file
+                        write_buffer_to_file(write_buffer, outfile)
+                        write_buffer.clear()
+                        last_min_term[2].clear()
                 last_min_term = min_term_tuple
             # Add next term in the ordered array of terms to the priority queue
             i = min_term_tuple[1]
@@ -138,7 +160,12 @@ class InvertedIndex:
                 min_heap.push((next_min_term_tuple[0], i, next_min_term_tuple[1]))
             # Write the final term
             if min_heap.empty():
-                outfile.write(str(last_min_term))
+                s = bytes(last_min_term[0], 'utf-8')
+                term_bytes = struct.pack('{}s'.format(len(s)), s)
+                for term_tuple in last_min_term[2]:
+                    encoded_tuple = struct.pack("II", term_tuple[0], term_tuple[1])
+                    term_bytes += encoded_tuple
+                write_buffer_to_file(write_buffer, outfile)
         # Close all block files
         for i in range(k):
             block_files[i].close()
@@ -156,7 +183,7 @@ class InvertedIndex:
     """
 
     # Single-pass in-memory indexing algorithm
-    def SPIMI_INVERT(self, number_block: int, token_stream_file) -> None:
+    def _spimi_invert(self, number_block: int, token_stream_file) -> None:
         # New output file
         output_file = open(f"back\\block{number_block}.txt",mode="w")
         # New hash
@@ -183,17 +210,37 @@ class InvertedIndex:
         output_file.close()
 
 
+    def _obtain_lengths(self) -> None:
+        with open("back\\token_stream.txt", mode="r") as token_stream, open(self.length_file_name, mode="w") as length_file, open(self.index_file_name, mode="r") as index_file:
+                last_doc_id = 1
+                cum: float = 0
+                while True:
+                    line: str = token_stream.readline().strip()
+                    if not line:
+                        break
+                    token: Tuple[str, int, int] = literal_eval(line)
+                    term: str = token[0]
+                    doc_id: int = token[1]
+                    tf: int = token[2]
+                    if doc_id != last_doc_id:
+                        last_doc_id = doc_id
+                        length_file.write(str(math.sqrt(cum)) + "\n")
+                        cum = 0
+                    df_term = len(self._binary_search_term(index_file, term))
+                    cum += (math.log10(1+tf) * math.log10(self.n/df_term)) ** 2
+                length_file.write(str(math.sqrt(cum)))
+                
     """
         Build the inverted index file with the collection using
         Single Pass In-Memory Indexing
     """
-    def SPIMIIndexConstruction(self):
+    def _spimi_index_construction(self):
         # Define id for block
         n = 0
         # Ask user if is necessary to preprocess
         if input("Would you like to preprocess (Y/N)?: ").strip() == 'Y':
             if input("Are you sure (Y/N)?: ").strip() == 'Y':
-                token_stream = self._preprocess()
+                token_stream = self._preprocess_documents()
             else:
                 token_stream = "back\\token_stream.txt"
         else:
@@ -202,7 +249,7 @@ class InvertedIndex:
         token_stream_file = open(token_stream,mode="r")
         # Define some variables to determinate if the actual file is at eof
         last_pos = token_stream_file.tell()
-        line = token_stream_file.readline()
+        line = token_stream_file.readline().strip()
         # Declare a list where will be block name as merge_blocks() function requires it
         blocks = []
         while line != '':
@@ -210,19 +257,92 @@ class InvertedIndex:
             # Change block id
             n += 1
             blocks.append(f"back\\block{n}.txt")
-            self.SPIMI_INVERT(n,token_stream_file)
+            self._spimi_invert(n,token_stream_file)
             # Redefine variables to determinate if the actual file is at eof
             last_pos = token_stream_file.tell()
-            line = token_stream_file.readline()
+            line = token_stream_file.readline().strip()
         # Proceed to merge all blocks in the list
-        self.merge_blocks(blocks)
+        self._merge_blocks(blocks)
+    
+    def create(self):
+        self._spimi_index_construction()
+        self._obtain_lengths()
+        
+    # def _(self, index_file: TextIO, term: str) -> Optional[List[Tuple[int, int]]]:
+    #     index_file.seek(0)
+    #     while True:
+    #         line: str = index_file.readline().strip()
+    #         if not line:
+    #             break
+    #         item: Tuple = literal_eval(line)
+    #         current_term: str = item[0] 
+    #         postings_list: List[Tuple[int, int]] = item[1]
+    #         if current_term == term:
+    #             return postings_list
+    #     return None
+        
+    def _binary_search_term_aux(self, index_file: TextIO, term: str, start: int, end: int) -> Optional[List[Tuple[int, int]]]:
+        if start > end:
+            return None
+        mid = math.floor((end + start) / 2)
+        index_file.seek(mid)
+        line: str = index_file.readline()
+        item: Tuple = literal_eval(line)
+        current_term: str = item[0]
+        if term == current_term:
+            return item[1]
+        elif term > current_term:
+            return self._binary_search_term(index_file, term, mid+1, end)
+        else:
+            return self._binary_search_term(index_file, term, start, mid)
+        
+    def _binary_search_term(self, index_file: TextIO, term: str) -> Optional[List[Tuple[int, int]]]:
+        return self._binary_search_term_aux(index_file, term, 0, self.n)
+    
 
-
+    def _cosine_score(self, query: str, k: int):
+        lengths: Dict[int, float] = {}
+        with open(self.length_file_name, mode="r") as file:
+            doc = 0
+            while True:
+                line = file.readline().strip()
+                if not line:
+                    break
+                doc += 1
+                lengths[doc] = float(line)
+                
+        with open(self.index_file_name) as index:
+            query_processed = self._preprocess(query)
+            scores: Dict[int, float] = {}
+            norm_q = 0
+            for query_term in query_processed:
+                tf_term_q: int = query_processed[query_term]
+                postings_list_term = self._binary_search_term(index, query_term)
+                df_term = len(postings_list_term)
+                tf_idf_t_q = math.log10(1+tf_term_q) * math.log10(self.n/df_term)
+                norm_q += tf_idf_t_q ** 2
+                for d, tf_term_d in postings_list_term:
+                    tf_idf_t_d = math.log10(1+tf_term_d) * math.log10(self.n/df_term)
+                    if d in scores:
+                        scores[d] += tf_idf_t_d * tf_idf_t_q
+                    else:
+                        scores.update({d: tf_idf_t_d * tf_idf_t_q})
+            norm_q = math.sqrt(norm_q)
+            for d in scores:
+                scores[d] = scores[d] / (lengths[d] * norm_q)
+            return list(sorted(scores.items(), key=lambda x: x[1], reverse=True))[:k+1]
+        
 
 def main():
-    
     mindicio = InvertedIndex("xednIdetrevnI")
-    mindicio.SPIMIIndexConstruction()
+    mindicio.create()
+    query = "  We give a prescription for how to compute the Callias index, using as\nregulator an exponential function. We find agreement with old results in all\nodd dimensions. We show that the problem of computing the dimension of the\nmoduli space of self-dual strings can be formulated as an index problem in\neven-dimensional (loop-)space. We think that the regulator used in this Letter\ncan be applied to this index problem.\n"
+    #query = " Text about a new formulation about new material cores new formulation new material new material new material"
+    start_time = timeit.default_timer()
+    topk = mindicio._cosine_score(query,5)
+    end_time = timeit.default_timer()
+    print(topk)
+    print(end_time - start_time)
 
 
 if __name__ == "__main__":
