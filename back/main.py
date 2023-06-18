@@ -36,6 +36,8 @@ class InvertedIndex:
         self.length_file_name = index_name + "_length.invidx"
         # File that stores the number of documents
         self.n_file_name = index_name + "_n.invidx"
+        # File that stores the number of terms in the inverted index
+        self.total_terms_file_name = index_name + "_total_terms.invidx"
         # File that maps the logical position of each term in the inverted index to its physical position
         self.header_terms_file_name = index_name + "_header_terms.invidx"
 
@@ -45,7 +47,7 @@ class InvertedIndex:
         self.block_file_name = lambda block_number: f"{index_name}_block{block_number}.invidxtmp"
 
         # Other constants
-        self.spimi_max_terms_per_hash = 100000
+        self.spimi_max_terms_per_hash = 10000
         # Stemmer for reducing english words into their word stem
         self.stemmer = SnowballStemmer('english')
         # Filter to just accept words with normal letter, capital letter and also tildes
@@ -57,11 +59,19 @@ class InvertedIndex:
                 lower_stopword_list = [tk.lower() for tk in self.tokenizer.tokenize(stoplist.read())]
                 self.stopwords = set(lower_stopword_list)
 
+        # Load number of documents
         if os.path.exists(self.n_file_name):
             with open(self.n_file_name, mode="r") as n_file:
                 self.n = int(n_file.readline())
         else:
             self.n = 0
+
+        # Load number of terms
+        if os.path.exists(self.total_terms_file_name):
+            with open(self.total_terms_file_name, mode="r") as total_terms_file:
+                self.total_terms = int(total_terms_file.readline())
+        else:
+            self.total_terms = 0
 
     """
         Preprocess all documents, and create a temporary
@@ -147,6 +157,7 @@ class InvertedIndex:
                     pos = outfile.tell()
                     header.write(str(pos).ljust(8) + "\n")
                     outfile.write(str(term) + "\n")
+                    self.total_terms += 1
                 last_min_term = min_term_tuple
             # Add next term in the ordered array of terms to the priority queue
             i = min_term_tuple[1]
@@ -161,6 +172,9 @@ class InvertedIndex:
                 pos = outfile.tell()
                 header.write(str(pos).ljust(8))
                 outfile.write(str(term))
+                self.total_terms += 1
+        with open(self.total_terms_file_name, mode="w") as total_terms_file:
+            total_terms_file.write(str(self.total_terms))
         # Close all block files
         for i in range(k):
             block_files[i].close()
@@ -282,7 +296,7 @@ class InvertedIndex:
 
     def _binary_search_term(self, header_term_file: TextIO, index_file: TextIO, term: str) -> Optional[
         List[Tuple[int, int]]]:
-        return self._binary_search_term_aux(header_term_file, index_file, term, 0, 1308)
+        return self._binary_search_term_aux(header_term_file, index_file, term, 0, self.total_terms)
 
     @measure_execution_time
     def _cosine_score(self, query: str, k: int):
@@ -319,7 +333,7 @@ class InvertedIndex:
 
 
 def main():
-    mindicio = InvertedIndex(raw_data_file_name="test.json", index_name="inverted_index",
+    mindicio = InvertedIndex(raw_data_file_name="sample.json", index_name="inverted_index",
                              stoplist_file_name="stoplist.txt")
     mindicio.create()
     query = "We give a prescription for how to compute the Callias index, using as\nregulator an exponential function. We find agreement with old results in all\nodd dimensions. We show that the problem of computing the dimension of the\nmoduli space of self-dual strings can be formulated as an index problem in\neven-dimensional (loop-)space. We think that the regulator used in this Letter\ncan be applied to this index problem.\n"
