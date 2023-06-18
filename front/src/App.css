@@ -22,6 +22,20 @@
 .query > *{
   height: 2rem;
 }
+.tabla-inside {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.tabla-inside > * {
+  margin-bottom: 3rem;
+}
+.tablas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-column-gap: 20px;
+}
 
 #texto{
   width: 500px;
