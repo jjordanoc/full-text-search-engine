@@ -49,8 +49,8 @@ async def get_top_k_academic(Q: str, k: int) -> dict:
     mindicio = InvertedIndex(raw_data_file_name="test.json", index_name="inverted_index",
                              stoplist_file_name="stoplist.txt")
     mindicio.create()
-    topk = mindicio._cosine_score(Q, k)
-    print(topk)
+    response = mindicio._cosine_score(Q, k)
+    return {'data': response}
 
 
 def get_top_k_academic(Q: str, k: int) -> dict:
