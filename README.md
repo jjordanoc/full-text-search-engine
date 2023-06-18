@@ -6,8 +6,11 @@ Para este proyecto, se nos ha pedido crear y un indice invertido utilizando el m
 
 ### Objetivos
 #### Principal
-
+Aplicar los algoritmos de búsqueda y recuperación de la información aprendidos en clase.
 #### Secundarios
+- Cargar la base de datos sobre la cual se trabajara en el proyecto.
+- Trabajar el Score en memoria secundaria 
+- Crear una interfaz amigable para la realización de las consultas.
 
 
 ### Organización de Archivos
