@@ -4,6 +4,10 @@
   align-items: center;
 }
 
+.app > *{
+  margin-bottom: 5rem;
+}
+
 .app >h2{
   height: auto;
   font-size: 50px;
@@ -19,8 +23,12 @@
   height: 2rem;
 }
 
-.query > input{
+#texto{
   width: 500px;
+  margin-right: 1rem;
+}
+#topk{
+  width: 50px;
   margin-right: 1rem;
 }
 
@@ -29,3 +37,4 @@
   border-radius: 5px;
   width: 5rem;
 }
+
