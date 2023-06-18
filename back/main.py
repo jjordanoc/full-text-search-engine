@@ -1,6 +1,7 @@
 import json
 import math
 import os
+import struct
 import timeit
 from ast import literal_eval
 from typing import List, TextIO, Tuple, Optional, Dict
@@ -22,6 +23,9 @@ def measure_execution_time(func):
 
     return wrapper
 
+struct_fmt = 'f'
+struct_len = struct.calcsize(struct_fmt)
+struct_unpack = struct.Struct(struct_fmt).unpack_from
 
 class InvertedIndex:
 
@@ -128,6 +132,7 @@ class InvertedIndex:
     def _merge_blocks(self, blocks: List[str]) -> None:
         outfile = open(self.index_file_name, "w")
         header = open(self.header_terms_file_name, "w")
+        length_file = open(self.length_file_name, "wb+")
         min_heap = MinHeap[Tuple]()
         k: int = len(blocks)
         # Buffer of BLOCK_SIZE to hold elements of each
@@ -141,6 +146,7 @@ class InvertedIndex:
             min_heap.push((min_term_tuple[0], i, min_term_tuple[1]))
         # Combine all posting lists of the current lowest term
         last_min_term: Optional[Tuple] = None
+
         while not min_heap.empty():
             # Grab the lowest term from the priority queue
             min_term_tuple = min_heap.pop()
@@ -151,7 +157,23 @@ class InvertedIndex:
             else:
                 if last_min_term is not None:
                     # Write current term to file
-                    term = (last_min_term[0], last_min_term[2])
+                    posting_list: List[Tuple[int, int]] = last_min_term[2]
+                    term = (last_min_term[0], posting_list)
+                    df_t = len(posting_list)
+                    # seek length file for each doc
+                    # add product of tf * idf squared
+                    # sqrt (at the end)
+                    for d, tf_t_d in posting_list:
+                        length_file.seek((d-1) * struct_len)
+                        line = length_file.read(struct_len)
+                        if line:
+                            val = struct_unpack(line)[0]
+                        else:
+                            val = 0
+                        val += (math.log10(1 + tf_t_d) * math.log10(self.n / df_t)) ** 2
+                        s = struct.pack('f', val)
+                        length_file.seek((d - 1) * struct_len)
+                        length_file.write(s)
                     pos = outfile.tell()
                     header.write(str(pos).ljust(8) + "\n")
                     outfile.write(str(term) + "\n")
@@ -166,7 +188,24 @@ class InvertedIndex:
                 min_heap.push((next_min_term_tuple[0], i, next_min_term_tuple[1]))
             # Write the final term
             if min_heap.empty():
-                term = (last_min_term[0], last_min_term[2])
+                # Write current term to file
+                posting_list: List[Tuple[int, int]] = last_min_term[2]
+                term = (last_min_term[0], posting_list)
+                df_t = len(posting_list)
+                # seek length file for each doc
+                # add product of tf * idf squared
+                # sqrt (at the end)
+                for d, tf_t_d in posting_list:
+                    length_file.seek((d-1) * struct_len)
+                    line = length_file.read(struct_len)
+                    if line:
+                        val = struct_unpack(line)[0]
+                    else:
+                        val = 0
+                    val += (tf_t_d * math.log10(self.n / df_t)) ** 2
+                    s = struct.pack('f', val)
+                    length_file.seek((d - 1) * struct_len)
+                    length_file.write(s)
                 pos = outfile.tell()
                 header.write(str(pos).ljust(8))
                 outfile.write(str(term))
@@ -216,37 +255,37 @@ class InvertedIndex:
         # as a good student :)
         output_file.close()
 
-    @measure_execution_time
-    def _obtain_lengths(self) -> None:
-        with open(self.token_stream_file_name, mode="r") as token_stream_file, open(self.length_file_name,
-                                                                                    mode="w") as length_file, open(
-            self.index_file_name, mode="r") as index_file, open(self.header_terms_file_name,
-                                                                mode="r") as header_term_file:
-            buffer = dict()
-            last_doc_id = 1
-            cum: float = 0
-            while True:
-                line: str = token_stream_file.readline().strip()
-                if not line:
-                    break
-                token: Tuple[str, int, int] = literal_eval(line)
-                term: str = token[0]
-                doc_id: int = token[1]
-                tf: int = token[2]
-                if doc_id != last_doc_id:
-                    last_doc_id = doc_id
-                    length_file.write(str(math.sqrt(cum)) + "\n")
-                    cum = 0
-                if term in buffer:
-                    df_term = buffer[term]
-                else:
-                    if len(buffer) >= self.spimi_max_terms_per_hash:
-                        buffer.popitem()
-                    buffer.update({term: len(self._binary_search_term(header_term_file, index_file, term))})
-                    df_term = buffer[term]
-
-                cum += (math.log10(1 + tf) * math.log10(self.n / df_term)) ** 2
-            length_file.write(str(math.sqrt(cum)))
+    # @measure_execution_time
+    # def _obtain_lengths(self) -> None:
+    #     with open(self.token_stream_file_name, mode="r") as token_stream_file, open(self.length_file_name,
+    #                                                                                 mode="w") as length_file, open(
+    #         self.index_file_name, mode="r") as index_file, open(self.header_terms_file_name,
+    #                                                             mode="r") as header_term_file:
+    #         buffer = dict()
+    #         last_doc_id = 1
+    #         cum: float = 0
+    #         while True:
+    #             line: str = token_stream_file.readline().strip()
+    #             if not line:
+    #                 break
+    #             token: Tuple[str, int, int] = literal_eval(line)
+    #             term: str = token[0]
+    #             doc_id: int = token[1]
+    #             tf: int = token[2]
+    #             if doc_id != last_doc_id:
+    #                 last_doc_id = doc_id
+    #                 length_file.write(str(math.sqrt(cum)) + "\n")
+    #                 cum = 0
+    #             if term in buffer:
+    #                 df_term = buffer[term]
+    #             else:
+    #                 if len(buffer) >= self.spimi_max_terms_per_hash:
+    #                     buffer.popitem()
+    #                 buffer.update({term: len(self._binary_search_term(header_term_file, index_file, term))})
+    #                 df_term = buffer[term]
+    #
+    #             cum += (math.log10(1 + tf) * math.log10(self.n / df_term)) ** 2
+    #         length_file.write(str(math.sqrt(cum)))
 
     """
         Build the inverted index file with the collection using
@@ -282,7 +321,7 @@ class InvertedIndex:
         self.n = 0
         self.total_terms = 0
         self._spimi_index_construction()
-        self._obtain_lengths()
+        # self._obtain_lengths()
 
     def _binary_search_term_aux(self, header_term_file: TextIO, index_file: TextIO, term: str, start: int, end: int) -> \
             Optional[List[Tuple[int, int]]]:
@@ -309,14 +348,15 @@ class InvertedIndex:
     @measure_execution_time
     def _cosine_score(self, query: str, k: int):
         lengths: Dict[int, float] = {}
-        with open(self.length_file_name, mode="r") as file:
+        with open(self.length_file_name, mode="rb") as length_file:
             doc = 0
             while True:
-                line = file.readline().strip()
+                line = length_file.read(struct_len)
                 if not line:
                     break
                 doc += 1
-                lengths[doc] = float(line)
+                # These values are raw (no sqrt)
+                lengths[doc] = math.sqrt(struct_unpack(line)[0])
 
         with open(self.index_file_name) as index_file, open(self.header_terms_file_name) as header_terms_file:
             query_processed = self._preprocess(query)
