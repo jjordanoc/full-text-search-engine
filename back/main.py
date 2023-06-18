@@ -2,9 +2,6 @@ import psycopg2
 from fastapi import FastAPI
 
 from fastapi.middleware.cors import CORSMiddleware
-import sys
-sys.path.append('../')
-
 from inverted_index import *
 
 app = FastAPI()
@@ -16,6 +13,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 @app.post('/obtener_datos')
 async def obtener_datos(data: dict) -> dict:
@@ -44,8 +42,9 @@ async def obtener_datos(data: dict) -> dict:
     cursor.close()
     return {'data': response}
 
+
 @app.post('obtener_datos2')
-async def get_top_k_academic(Q: str, k: int) -> dict:
+async def get_top_k_invidx(Q: str, k: int) -> dict:
     mindicio = InvertedIndex(raw_data_file_name="api/test.json", index_name="inverted_index",
                              stoplist_file_name="api/stoplist.txt")
     mindicio.create()
@@ -61,5 +60,6 @@ def get_top_k_academic(Q: str, k: int) -> dict:
     print(topk)
 
 
-query = "We give a prescription for how to compute the Callias index, using as\nregulator an exponential function. We find agreement with old results in all\nodd dimensions. We show that the problem of computing the dimension of the\nmoduli space of self-dual strings can be formulated as an index problem in\neven-dimensional (loop-)space. We think that the regulator used in this Letter\ncan be applied to this index problem.\n"
-get_top_k_academic(query, 3)
+
+# query = "We give a prescription for how to compute the Callias index, using as\nregulator an exponential function. We find agreement with old results in all\nodd dimensions. We show that the problem of computing the dimension of the\nmoduli space of self-dual strings can be formulated as an index problem in\neven-dimensional (loop-)space. We think that the regulator used in this Letter\ncan be applied to this index problem.\n"
+# get_top_k_academic(query, 3)

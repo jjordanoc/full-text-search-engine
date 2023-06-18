@@ -4,7 +4,7 @@ import os
 import struct
 import timeit
 from ast import literal_eval
-from typing import List, TextIO, Tuple, Optional, Dict
+from typing import List, TextIO, Tuple, Optional, Dict, BinaryIO
 
 from nltk.stem.snowball import SnowballStemmer
 from nltk.tokenize import RegexpTokenizer
@@ -23,9 +23,11 @@ def measure_execution_time(func):
 
     return wrapper
 
+
 struct_fmt = 'f'
 struct_len = struct.calcsize(struct_fmt)
 struct_unpack = struct.Struct(struct_fmt).unpack_from
+
 
 class InvertedIndex:
 
@@ -51,7 +53,7 @@ class InvertedIndex:
         self.block_file_name = lambda block_number: f"{index_name}_block{block_number}.invidxtmp"
 
         # Other constants
-        self.spimi_max_terms_per_hash = 10000
+        self.spimi_max_terms_per_hash = 200000
         # Stemmer for reducing english words into their word stem
         self.stemmer = SnowballStemmer('english')
         # Filter to just accept words with normal letter, capital letter and also tildes
@@ -131,7 +133,7 @@ class InvertedIndex:
     @measure_execution_time
     def _merge_blocks(self, blocks: List[str]) -> None:
         outfile = open(self.index_file_name, "w")
-        header = open(self.header_terms_file_name, "w")
+        header = open(self.header_terms_file_name, "wb")
         length_file = open(self.length_file_name, "wb+")
         min_heap = MinHeap[Tuple]()
         k: int = len(blocks)
@@ -146,7 +148,7 @@ class InvertedIndex:
             min_heap.push((min_term_tuple[0], i, min_term_tuple[1]))
         # Combine all posting lists of the current lowest term
         last_min_term: Optional[Tuple] = None
-
+        term_num = 1
         while not min_heap.empty():
             # Grab the lowest term from the priority queue
             min_term_tuple = min_heap.pop()
@@ -158,13 +160,14 @@ class InvertedIndex:
                 if last_min_term is not None:
                     # Write current term to file
                     posting_list: List[Tuple[int, int]] = last_min_term[2]
-                    term = (last_min_term[0], posting_list)
+                    term = (last_min_term[0], posting_list, term_num)
+                    term_num += 1
                     df_t = len(posting_list)
                     # seek length file for each doc
                     # add product of tf * idf squared
                     # sqrt (at the end)
                     for d, tf_t_d in posting_list:
-                        length_file.seek((d-1) * struct_len)
+                        length_file.seek((d - 1) * struct_len)
                         line = length_file.read(struct_len)
                         if line:
                             val = struct_unpack(line)[0]
@@ -175,7 +178,8 @@ class InvertedIndex:
                         length_file.seek((d - 1) * struct_len)
                         length_file.write(s)
                     pos = outfile.tell()
-                    header.write(str(pos).ljust(8) + "\n")
+                    pos = struct.pack('I', pos)
+                    header.write(pos)
                     outfile.write(str(term) + "\n")
                     self.total_terms += 1
                 last_min_term = min_term_tuple
@@ -196,7 +200,7 @@ class InvertedIndex:
                 # add product of tf * idf squared
                 # sqrt (at the end)
                 for d, tf_t_d in posting_list:
-                    length_file.seek((d-1) * struct_len)
+                    length_file.seek((d - 1) * struct_len)
                     line = length_file.read(struct_len)
                     if line:
                         val = struct_unpack(line)[0]
@@ -207,7 +211,8 @@ class InvertedIndex:
                     length_file.seek((d - 1) * struct_len)
                     length_file.write(s)
                 pos = outfile.tell()
-                header.write(str(pos).ljust(8))
+                pos = struct.pack('I', pos)
+                header.write(pos)
                 outfile.write(str(term))
                 self.total_terms += 1
         with open(self.total_terms_file_name, mode="w") as total_terms_file:
@@ -242,7 +247,7 @@ class InvertedIndex:
                 dictionary[term[0]] = [(term[1], term[2])]
             else:
                 dictionary[term[0]].append((term[1], term[2]))
-            # Line 8 and 9 from pseudocode are skipped because dictionaries in Python are dynamic.  
+            # Line 8 and 9 from pseudocode are skipped because dictionaries in Python are dynamic.
         # Line 11 from pseudocode is skipped because in the preproccesing token_stream.txt is already sorted.
         dictionary = dict(sorted(dictionary.items(), key=lambda x: x[0], reverse=False))  # changes block
         # This logic is necessary to avoid writing a skip line at the eof
@@ -254,38 +259,6 @@ class InvertedIndex:
         # Line 13 skipped from pseudocode, no need to return the file (?) as it is writted lol. But we can close it
         # as a good student :)
         output_file.close()
-
-    # @measure_execution_time
-    # def _obtain_lengths(self) -> None:
-    #     with open(self.token_stream_file_name, mode="r") as token_stream_file, open(self.length_file_name,
-    #                                                                                 mode="w") as length_file, open(
-    #         self.index_file_name, mode="r") as index_file, open(self.header_terms_file_name,
-    #                                                             mode="r") as header_term_file:
-    #         buffer = dict()
-    #         last_doc_id = 1
-    #         cum: float = 0
-    #         while True:
-    #             line: str = token_stream_file.readline().strip()
-    #             if not line:
-    #                 break
-    #             token: Tuple[str, int, int] = literal_eval(line)
-    #             term: str = token[0]
-    #             doc_id: int = token[1]
-    #             tf: int = token[2]
-    #             if doc_id != last_doc_id:
-    #                 last_doc_id = doc_id
-    #                 length_file.write(str(math.sqrt(cum)) + "\n")
-    #                 cum = 0
-    #             if term in buffer:
-    #                 df_term = buffer[term]
-    #             else:
-    #                 if len(buffer) >= self.spimi_max_terms_per_hash:
-    #                     buffer.popitem()
-    #                 buffer.update({term: len(self._binary_search_term(header_term_file, index_file, term))})
-    #                 df_term = buffer[term]
-    #
-    #             cum += (math.log10(1 + tf) * math.log10(self.n / df_term)) ** 2
-    #         length_file.write(str(math.sqrt(cum)))
 
     """
         Build the inverted index file with the collection using
@@ -323,32 +296,32 @@ class InvertedIndex:
         self._spimi_index_construction()
         # self._obtain_lengths()
 
-    def _binary_search_term_aux(self, header_term_file: TextIO, index_file: TextIO, term: str, start: int, end: int) -> \
-            Optional[List[Tuple[int, int]]]:
+    def _binary_search_term_aux(self, header_term_file: BinaryIO, index_file: TextIO, term: str, start: int, end: int):
+        # -> Optional[List[Tuple[int, int]]]:
         if start > end:
             return None
         mid = math.floor((end + start) / 2)
-        header_term_file.seek(mid * 10)
-        physical_pos = int(header_term_file.read(8))
+        header_term_file.seek(mid * 4)
+        physical_pos = int(struct.unpack('I', header_term_file.read(4))[0])
         index_file.seek(physical_pos)
         line: str = index_file.readline()
         item: Tuple = literal_eval(line)
         current_term: str = item[0]
         if term == current_term:
-            return item[1]
+            return item[2] - 1, item[1]
         elif term > current_term:
             return self._binary_search_term_aux(header_term_file, index_file, term, mid + 1, end)
         else:
             return self._binary_search_term_aux(header_term_file, index_file, term, start, mid - 1)
 
-    def _binary_search_term(self, header_term_file: TextIO, index_file: TextIO, term: str) -> Optional[
+    def _binary_search_term(self, header_term_file: BinaryIO, index_file: TextIO, term: str) -> Optional[
         List[Tuple[int, int]]]:
         return self._binary_search_term_aux(header_term_file, index_file, term, 0, self.total_terms)
 
     @measure_execution_time
-    def _cosine_score(self, query: str, k: int):
+    def _obtain_lenghts_binary(self, lenght_file: str):
         lengths: Dict[int, float] = {}
-        with open(self.length_file_name, mode="rb") as length_file:
+        with open(lenght_file, mode="rb") as length_file:
             doc = 0
             while True:
                 line = length_file.read(struct_len)
@@ -357,14 +330,23 @@ class InvertedIndex:
                 doc += 1
                 # These values are raw (no sqrt)
                 lengths[doc] = math.sqrt(struct_unpack(line)[0])
+        return lengths
 
-        with open(self.index_file_name) as index_file, open(self.header_terms_file_name) as header_terms_file:
+    @measure_execution_time
+    def _cosine_score(self, query: str, k: int):
+        lengths: Dict[int, float] = self._obtain_lenghts_binary(self.length_file_name)
+
+        with open(self.index_file_name) as index_file, open(self.header_terms_file_name,
+                                                            mode="rb") as header_terms_file:
             query_processed = self._preprocess(query)
             scores: Dict[int, float] = {}
             norm_q = 0
+            start_pivot = 0
+            query_processed = dict(sorted(query_processed.items(), key=lambda x: x[0], reverse=False))
             for query_term in query_processed:
                 tf_term_q: int = query_processed[query_term]
-                postings_list_term = self._binary_search_term(header_terms_file, index_file, query_term)
+                start_pivot, postings_list_term = self._binary_search_term_aux(header_terms_file, index_file,
+                                                                               query_term, 0, self.total_terms)
                 df_term = len(postings_list_term)
                 tf_idf_t_q = math.log10(1 + tf_term_q) * math.log10(self.n / df_term)
                 norm_q += tf_idf_t_q ** 2
@@ -378,3 +360,17 @@ class InvertedIndex:
             for d in scores:
                 scores[d] = scores[d] / (lengths[d] * norm_q)
             return list(sorted(scores.items(), key=lambda x: x[1], reverse=True))[0:k + 1]
+
+
+def main():
+    mindicio = InvertedIndex(raw_data_file_name="C:/Users/Jose/Desktop/arxiv-metadata-oai-snapshot.json",
+                             index_name="inverted_index",
+                             stoplist_file_name="stoplist.txt")
+    # mindicio.create()
+    query = "  A fully differential calculation in perturbative quantum chromodynamics is\npresented for the production of massive photon pairs at hadron colliders. All\nnext-to-leading order perturbative contributions from quark-antiquark,\ngluon-(anti)quark, and gluon-gluon subprocesses are included, as well as\nall-orders resummation of initial-state gluon radiation valid at\nnext-to-next-to-leading logarithmic accuracy. The region of phase space is\nspecified in which the calculation is most reliable. Good agreement is\ndemonstrated with data from the Fermilab Tevatron, and predictions are made for\nmore detailed tests with CDF and DO data. Predictions are shown for\ndistributions of diphoton pairs produced at the energy of the Large Hadron\nCollider (LHC). Distributions of the diphoton pairs from the decay of a Higgs\nboson are contrasted with those produced from QCD processes at the LHC, showing\nthat enhanced sensitivity to the signal can be obtained with judicious\nselection of events.\n"
+    topk = mindicio._cosine_score(query, 5)
+    print(topk)
+
+
+if __name__ == "__main__":
+    main()
