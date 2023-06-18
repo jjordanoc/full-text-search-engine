@@ -3,6 +3,7 @@ from fastapi import FastAPI
 
 from fastapi.middleware.cors import CORSMiddleware
 from inverted_index import *
+import uvicorn
 
 app = FastAPI()
 
@@ -70,3 +71,7 @@ async def create_index() -> dict:
                           stoplist_file_name=STOPLIST_FILE_PATH)
     index.create()
     return {'response': 200}
+
+
+if __name__ == '__main__':
+    uvicorn.run('main:app', host='0.0.0.0', reload=True)

@@ -371,27 +371,12 @@ class InvertedIndex:
 
         with open(self.doc_map_file_name, mode='rb') as doc_map_file, open(self.raw_data_file_name) as raw_data_file:
             for doc, ranking in query_result:
-                print(doc)
-                doc_map_file.seek(doc)
-                print(struct_len_int)
-
+                doc_map_file.seek((doc - 1) * struct_len_int)
                 physical_pos_line = doc_map_file.read(struct_len_int)
-                print(physical_pos_line)
-
                 physical_pos = int(struct_unpack_int(physical_pos_line)[0])
-                print(physical_pos)
-
                 raw_data_file.seek(physical_pos)
-                
                 line: str = raw_data_file.readline()
-
-                print(line)
                 document = json.loads(line)
-                print(document)
                 result.append([document["title"], document["abstract"], ranking])
 
         return result
-
-#
-# with open('sample.json', 'r') as file, open('index/inverted_index_docmap.invidx', 'wb'):
-#
