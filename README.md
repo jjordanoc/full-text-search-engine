@@ -20,7 +20,7 @@ Aplicar los algoritmos de búsqueda y recuperación de la información aprendido
 
 
 ### DataSet
-<div style="display: flex; align-items: space-between;">
+<div style="display: flex; justify-content: space-between;">
   <p>El dataset utilizado es arXiv.org, el cual colecciona una vasta cantidad de artículos escolares en las ramas de física, matemáticas, química, computación, entre otras.</p>
   <img src="https://upload.wikimedia.org/wikipedia/commons/7/7a/ArXiv_logo_2022.png" alt="ArXiv" width="100" height="100">
 </div>
