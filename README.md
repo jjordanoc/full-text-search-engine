@@ -20,8 +20,8 @@ Aplicar los algoritmos de búsqueda y recuperación de la información aprendido
 
 
 ### DataSet
-
-
+El dataset utilizado es arXiv.org, el cual colecciona una vasta cantidad de artículos escolares en las ramas de física, matemáticas, química, computación, entre otras.
+<a href="https://upload.wikimedia.org/wikipedia/commons/7/7a/ArXiv_logo_2022.png" target="_blank">
 ## SQL Parser
 
 
