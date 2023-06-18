@@ -101,8 +101,6 @@ class InvertedIndex:
         return stemmed_tokens_count
 
     def _preprocess_documents(self) -> None:
-        # Set n to 0
-        self.n = 0
         with open(self.raw_data_file_name) as file, open(self.doc_map_file_name, mode="w") as header_file, open(
                 self.token_stream_file_name, mode="w") as token_stream_file:
             logic_pos = 1
@@ -224,6 +222,7 @@ class InvertedIndex:
                                                                                     mode="w") as length_file, open(
             self.index_file_name, mode="r") as index_file, open(self.header_terms_file_name,
                                                                 mode="r") as header_term_file:
+            buffer = dict()
             last_doc_id = 1
             cum: float = 0
             while True:
@@ -238,7 +237,14 @@ class InvertedIndex:
                     last_doc_id = doc_id
                     length_file.write(str(math.sqrt(cum)) + "\n")
                     cum = 0
-                df_term = len(self._binary_search_term(header_term_file, index_file, term))
+                if term in buffer:
+                    df_term = buffer[term]
+                else:
+                    if len(buffer) >= self.spimi_max_terms_per_hash:
+                        buffer.popitem()
+                    buffer.update({term: len(self._binary_search_term(header_term_file, index_file, term))})
+                    df_term = buffer[term]
+
                 cum += (math.log10(1 + tf) * math.log10(self.n / df_term)) ** 2
             length_file.write(str(math.sqrt(cum)))
 
@@ -273,6 +279,8 @@ class InvertedIndex:
             self._merge_blocks(blocks)
 
     def create(self):
+        self.n = 0
+        self.total_terms = 0
         self._spimi_index_construction()
         self._obtain_lengths()
 
