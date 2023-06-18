@@ -11,6 +11,18 @@ from nltk.tokenize import RegexpTokenizer
 from Heap import MinHeap
 
 
+def measure_execution_time(func):
+    def wrapper(*args, **kwargs):
+        start_time = timeit.default_timer()
+        result = func(*args, **kwargs)
+        end_time = timeit.default_timer()
+        execution_time = end_time - start_time
+        print(f"Execution time of {func.__name__}: {execution_time} seconds")
+        return result
+
+    return wrapper
+
+
 class InvertedIndex:
 
     def __init__(self, raw_data_file_name: str, stoplist_file_name: str = "", index_name: str = "myindex"):
@@ -33,7 +45,7 @@ class InvertedIndex:
         self.block_file_name = lambda block_number: f"{index_name}_block{block_number}.invidxtmp"
 
         # Other constants
-        self.spimi_max_terms_per_hash = 1000
+        self.spimi_max_terms_per_hash = 100000
         # Stemmer for reducing english words into their word stem
         self.stemmer = SnowballStemmer('english')
         # Filter to just accept words with normal letter, capital letter and also tildes
@@ -104,6 +116,7 @@ class InvertedIndex:
         with open(self.n_file_name, mode="w") as n_file:
             n_file.write(str(self.n))
 
+    @measure_execution_time
     def _merge_blocks(self, blocks: List[str]) -> None:
         outfile = open(self.index_file_name, "w")
         header = open(self.header_terms_file_name, "w")
@@ -191,10 +204,8 @@ class InvertedIndex:
         # as a good student :)
         output_file.close()
 
+    @measure_execution_time
     def _obtain_lengths(self) -> None:
-        if input("Would you like to obtain lengths (Y/N)? ").strip().lower() == 'n':
-            if input("Are you sure (Y/N)? ").strip().lower() == 'y':
-                return
         with open(self.token_stream_file_name, mode="r") as token_stream_file, open(self.length_file_name,
                                                                                     mode="w") as length_file, open(
             self.index_file_name, mode="r") as index_file, open(self.header_terms_file_name,
@@ -222,10 +233,8 @@ class InvertedIndex:
         Single Pass In-Memory Indexing
     """
 
-    def _spimi_index_construction(self):
-        if input("Would you like to construct index (Y/N)? ").strip().lower() == 'n':
-            if input("Are you sure (Y/N)? ").strip().lower() == 'y':
-                return 0
+    @measure_execution_time
+    def _spimi_index_construction(self) -> None:
         # Define id for block
         n = 0
         # Ask user if is necessary to preprocess
@@ -275,6 +284,7 @@ class InvertedIndex:
         List[Tuple[int, int]]]:
         return self._binary_search_term_aux(header_term_file, index_file, term, 0, 1308)
 
+    @measure_execution_time
     def _cosine_score(self, query: str, k: int):
         lengths: Dict[int, float] = {}
         with open(self.length_file_name, mode="r") as file:
@@ -309,18 +319,12 @@ class InvertedIndex:
 
 
 def main():
-    mindicio = InvertedIndex("xednIdetrevnI")
-    start_time = timeit.default_timer()
+    mindicio = InvertedIndex(raw_data_file_name="test.json", index_name="inverted_index",
+                             stoplist_file_name="stoplist.txt")
     mindicio.create()
-    end_time = timeit.default_timer()
-    print(end_time - start_time)
-    query = "  We give a prescription for how to compute the Callias index, using as\nregulator an exponential function. We find agreement with old results in all\nodd dimensions. We show that the problem of computing the dimension of the\nmoduli space of self-dual strings can be formulated as an index problem in\neven-dimensional (loop-)space. We think that the regulator used in this Letter\ncan be applied to this index problem.\n"
-    # query = " Text about a new formulation about new material cores new formulation new material new material new material"
-    start_time = timeit.default_timer()
+    query = "We give a prescription for how to compute the Callias index, using as\nregulator an exponential function. We find agreement with old results in all\nodd dimensions. We show that the problem of computing the dimension of the\nmoduli space of self-dual strings can be formulated as an index problem in\neven-dimensional (loop-)space. We think that the regulator used in this Letter\ncan be applied to this index problem.\n"
     topk = mindicio._cosine_score(query, 5)
-    end_time = timeit.default_timer()
     print(topk)
-    print(end_time - start_time)
 
 
 if __name__ == "__main__":
