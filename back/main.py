@@ -41,6 +41,7 @@ class InvertedIndex:
         self.length_file_name = filename + "_length.invidx"
         self.collection_path = collection_path
         self.n_file_name = filename + "_n.invidx"
+        self.header_terms_file_name = filename + "_header_terms.invidx"
         if os.path.exists(self.n_file_name):
            with open(self.n_file_name, mode = "r") as n_file:
             self.n = int(n_file.readline())
@@ -105,23 +106,15 @@ class InvertedIndex:
         return "back\\token_stream.txt"
 
     def _merge_blocks(self, blocks: List[str]) -> None:
-        def write_buffer_to_file(buffer: bytearray, file):
-            # Pad the buffer if necessary
-            padding = b"\x00" * (PAGE_SIZE - len(buffer) % PAGE_SIZE)
-            buffer += padding
-
-            # Write the buffer to the file
-            file.write(buffer)
-        
-        outfile = open(self.index_file_name, "wb")
+        outfile = open(self.index_file_name, "w")
+        header = open(self.header_terms_file_name, "w")
         min_heap = MinHeap[Tuple]()
         k: int = len(blocks)
-        write_buffer = bytearray()
         # Buffer of BLOCK_SIZE to hold elements of each
         block_files: List[TextIO] = []
         # Open all block files and extract initialize min heap of size k
         for i in range(k):
-            block_files.append(open(blocks[i], mode="r"))
+            block_files.append(open(blocks[i]))
             # min_term_tuple: (term, postings_list)
             min_term_tuple = literal_eval(block_files[i].readline())
             # heap elements: (term, block, postings_list)
@@ -137,19 +130,11 @@ class InvertedIndex:
             # Otherwise, write the current lowest term to disk, and start processing the next term
             else:
                 if last_min_term is not None:
-                    s = bytes(last_min_term[0], 'utf-8')
-                    term_bytes = struct.pack('{}s'.format(len(s)), s)
-                    for term_tuple in last_min_term[2]:
-                        encoded_tuple = struct.pack("II", term_tuple[0], term_tuple[1])
-                        term_bytes += encoded_tuple
-                    if len(write_buffer) + len(term_bytes) < PAGE_SIZE:
-                        # Append current term to the buffer
-                        write_buffer.extend(term_bytes)
-                    else:
-                        # Write current buffer to file
-                        write_buffer_to_file(write_buffer, outfile)
-                        write_buffer.clear()
-                        last_min_term[2].clear()
+                    # Write current term to file
+                    term = (last_min_term[0],last_min_term[2])
+                    pos = outfile.tell()
+                    header.write(str(pos) + "\n")
+                    outfile.write(str(term) + "\n")
                 last_min_term = min_term_tuple
             # Add next term in the ordered array of terms to the priority queue
             i = min_term_tuple[1]
@@ -160,12 +145,10 @@ class InvertedIndex:
                 min_heap.push((next_min_term_tuple[0], i, next_min_term_tuple[1]))
             # Write the final term
             if min_heap.empty():
-                s = bytes(last_min_term[0], 'utf-8')
-                term_bytes = struct.pack('{}s'.format(len(s)), s)
-                for term_tuple in last_min_term[2]:
-                    encoded_tuple = struct.pack("II", term_tuple[0], term_tuple[1])
-                    term_bytes += encoded_tuple
-                write_buffer_to_file(write_buffer, outfile)
+                term = (last_min_term[0],last_min_term[2]) 
+                pos = outfile.tell()
+                header.write(str(pos))
+                outfile.write(str(term))
         # Close all block files
         for i in range(k):
             block_files[i].close()
@@ -211,6 +194,9 @@ class InvertedIndex:
 
 
     def _obtain_lengths(self) -> None:
+        if input("Would you like to obtain lengths (Y/N)? ").strip().lower() == 'n':
+            if input("Are you sure (Y/N)? ").strip().lower() == 'y':
+                return 0
         with open("back\\token_stream.txt", mode="r") as token_stream, open(self.length_file_name, mode="w") as length_file, open(self.index_file_name, mode="r") as index_file:
                 last_doc_id = 1
                 cum: float = 0
@@ -226,7 +212,7 @@ class InvertedIndex:
                         last_doc_id = doc_id
                         length_file.write(str(math.sqrt(cum)) + "\n")
                         cum = 0
-                    df_term = len(self._binary_search_term(index_file, term))
+                    df_term = len(self._sequencial_search_term(index_file, term))
                     cum += (math.log10(1+tf) * math.log10(self.n/df_term)) ** 2
                 length_file.write(str(math.sqrt(cum)))
                 
@@ -235,16 +221,13 @@ class InvertedIndex:
         Single Pass In-Memory Indexing
     """
     def _spimi_index_construction(self):
+        if input("Would you like to construct index (Y/N)? ").strip().lower() == 'n':
+            if input("Are you sure (Y/N)? ").strip().lower() == 'y':
+                return 0
         # Define id for block
         n = 0
         # Ask user if is necessary to preprocess
-        if input("Would you like to preprocess (Y/N)?: ").strip() == 'Y':
-            if input("Are you sure (Y/N)?: ").strip() == 'Y':
-                token_stream = self._preprocess_documents()
-            else:
-                token_stream = "back\\token_stream.txt"
-        else:
-            token_stream = "back\\token_stream.txt"
+        token_stream = self._preprocess_documents()
         # Open the token_stream_file where we are going to construct our index
         token_stream_file = open(token_stream,mode="r")
         # Define some variables to determinate if the actual file is at eof
@@ -268,18 +251,18 @@ class InvertedIndex:
         self._spimi_index_construction()
         self._obtain_lengths()
         
-    # def _(self, index_file: TextIO, term: str) -> Optional[List[Tuple[int, int]]]:
-    #     index_file.seek(0)
-    #     while True:
-    #         line: str = index_file.readline().strip()
-    #         if not line:
-    #             break
-    #         item: Tuple = literal_eval(line)
-    #         current_term: str = item[0] 
-    #         postings_list: List[Tuple[int, int]] = item[1]
-    #         if current_term == term:
-    #             return postings_list
-    #     return None
+    def _sequencial_search_term(self, index_file: TextIO, term: str) -> Optional[List[Tuple[int, int]]]:
+        index_file.seek(0)
+        while True:
+            line: str = index_file.readline().strip()
+            if not line:
+                break
+            item: Tuple = literal_eval(line)
+            current_term: str = item[0] 
+            postings_list: List[Tuple[int, int]] = item[1]
+            if current_term == term:
+                return postings_list
+        return None
         
     def _binary_search_term_aux(self, index_file: TextIO, term: str, start: int, end: int) -> Optional[List[Tuple[int, int]]]:
         if start > end:
@@ -317,7 +300,7 @@ class InvertedIndex:
             norm_q = 0
             for query_term in query_processed:
                 tf_term_q: int = query_processed[query_term]
-                postings_list_term = self._binary_search_term(index, query_term)
+                postings_list_term = self._sequencial_search_term(index, query_term)
                 df_term = len(postings_list_term)
                 tf_idf_t_q = math.log10(1+tf_term_q) * math.log10(self.n/df_term)
                 norm_q += tf_idf_t_q ** 2
