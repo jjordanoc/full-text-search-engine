@@ -179,6 +179,10 @@ Interfaz al buscar una query
 
 ![Resultado](https://github.com/ByJuanDiego/db2-project-2/assets/68095284/80be232e-59cb-49b6-9f71-52ec259d9983)
 
+Comparacion de tiempos al recuperar documentos
+
+![Tiempos](https://github.com/ByJuanDiego/db2-project-2/assets/79115974/84251111-d5b0-4868-b2d0-928993602a83)
+
 
 ## Conclusiones
 
