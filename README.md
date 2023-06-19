@@ -74,7 +74,7 @@ En el caso de los cálculos del score por documento, solo se está iterando por 
 
 ## Frontend
 
-Se utilizó React para la elaboración de la interfaz. Aquí, el usuario colocará la query y el top k documentos a obtener. Al presionar el botón de **enviar**, se realizará una conexión con las funciones del back-end (una para nuestro índice invertido y otra para Postgres), donde la página esperara hasta que cada función devuelva un diccionario de los datos obtenidos. Sucesivamente, se mostrarán dichos resultados en formato de tabla, con el tiempo de consulta de cada uno.
+Se utilizó React para la elaboración de la interfaz. Aquí, el usuario colocará la query y el top k documentos a obtener. Al presionar el botón de **enviar**, se realizará una conexión con las funciones del back-end (una para nuestro índice invertido y otra para Postgres), enviando como parámetros dichas variables. Seguidamente, la página esperará hasta que cada función devuelva un diccionario de los datos obtenidos, para después mostrarlos en formato de tabla, con el tiempo de consulta de cada uno.
 
 Interfaz al correr la web
 ![Basico](https://github.com/ByJuanDiego/db2-project-2/assets/68095284/123dd817-07f1-459f-a88f-0b2d2be7e15a)
