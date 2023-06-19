@@ -112,7 +112,7 @@ y la query. Se hizo uso de la funcion ```plainto_tsquery``` para transformar un 
 
 
 Para este proyecto no se consideró el uso del ```Generalized Inverted Index```. La razon principal es que el tipo de consulta propuesta 
-es un top-k de documentos ordenados por relevancia. Sin embargo, el ```gin``` filtra aquellos documentos que hacen match con la query, dejando abierta la posibilidad de que se filtren más documentos que el ```k``` requerido por la consulta.
+retorna un top-k de documentos ordenados por relevancia. Sin embargo, el ```gin``` filtra aquellos documentos que hacen match con la query, dejando abierta la posibilidad de que se filtren más documentos que el ```k``` requerido por la consulta.
 
 
 
