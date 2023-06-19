@@ -40,7 +40,7 @@ Dataset extraído de [Kaggle](https://www.kaggle.com/datasets/Cornell-University
 
 ## Back-End
 
-Se utilizó el framework **FastAPI**, con el cual conectamos con el front-end a través de dos endpoints que ayudan a recuperar la informacion, los cuales devolverán el top K de nuestro indice creado y de PostgreSQL. Para ello, se interpreta la query enviada por el usuario y se devuelve la data a través de un JSON.
+Se utilizó el framework **FastAPI**, con el cual conectamos con el front-end a través de dos endpoints que ayudan a recuperar la informacion, los cuales devolverán el top K de nuestro indice creado y de PostgreSQL. Para ello, se interpreta la query enviada por el usuario y se devuelve la data a través de un JSON que contiene el titulo del documento, el abstract y el rank (en ese orden).
 
 
 ### Endpoints
