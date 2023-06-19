@@ -69,7 +69,8 @@ En el caso de los cálculos del score por documento, solo se está iterando por 
 
 ## Frontend
 
-Se utilizó React para la elaboración de la interfaz. Aquí, el usuario colocará la **query** y el **top k** documentos a obtener. Seguidamente, se realizara una conexion con las funciones del back-end (una para Python y otra para Postgres), donde cada una devolvera un diccionario de los datos obtenidos. Sucesivamente, se mostraran dichos resultados en una tabla, con el tiempo de consulta respectivo a cada uno.
+Se utilizó React para la elaboración de la interfaz. Aquí, el usuario colocará la query y el top k documentos a obtener. Al presionar el boton de **enviar**, se realizará una conexión con las funciones del back-end (una para Python y otra para Postgres), donde cada una devolverá un diccionario de los datos obtenidos. Sucesivamente, se mostrarán dichos resultados en una tabla, con el tiempo de consulta respectivo a cada uno.
+
 Interfaz al correr la web
 ![Basico](https://github.com/ByJuanDiego/db2-project-2/assets/68095284/123dd817-07f1-459f-a88f-0b2d2be7e15a)
 Interfaz al buscar una query
