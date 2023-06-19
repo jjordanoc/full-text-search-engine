@@ -42,6 +42,28 @@ Dataset extraído de [Kaggle](https://www.kaggle.com/datasets/Cornell-University
 
 Se utilizó el framework **FastAPI**, con el cual conectamos con el front-end a través de dos endpoints, los cuales devolverán el top K de nuestro indice creado y PostgreSQL. Para eso, se interpreta la query enviada por el usuario y se devuelve la data a través de un JSON.
 
+
+### Endpoints
+```python
+@app.post('/postgresql_recover')
+async def obtener_datos(data: dict) -> dict:
+```
+- Obtiene los k documentos más relevantes respecto a la query desde la conexion con Postgres.
+
+```python
+@app.post('/local_index_recover')
+async def get_top_k_invidx(data: dict) -> dict:
+```
+- Obtiene los k documentos mas relevantes respecto a la query desde nuestro propio índice
+
+
+```python
+@app.post('/create_index')
+async def create_index() -> dict:
+```
+
+- Crea el índice en memoria secundaria y lo deja listo para la recuperacion de la información en los documentos.
+
 ### Contrucción del índice invertido
 
 En la construcción del índice invertido en memoria secundaria se utilizó el algoritmo **Single Pass In-Memory Indexing (SPIMI)**. 
@@ -70,6 +92,28 @@ Para realizar una consulta óptima se ha considerado tanto la complejidad espaci
 
 Para la implementación de las consultas, se consideró ya un cálculo de las normas de cada documento. Es inevitable manejar un arreglo en donde se guarden los documentos con sus respectivos scores, debido hay que considerar todos los documentos para posteriormente ordenarlos.
 En el caso de los cálculos del score por documento, solo se está iterando por cada término de la query en la colección total de términos de todos los documentos existentes. Básicamente se está aplicando una intersección debido a que estamos accediendo a memoria secundaria. Además de ello, cabe señalar que se está realizando una búsqueda binaria de un término en la colección total de términos. Esto es para optimizar de manera notable las lecturas en memoria secundaria.
+
+
+### Conexion con Postgres
+
+Para poder comparar los documentos obtenidos con PostgreSQL se hizo uso de ```psycopg2``` para realizar la conexion entre ```PostgreSQL``` y nuestro servidor de backend en ```Python```.
+
+La consulta elegida para ```PostgreSQL``` es la siguiente:
+
+```sql
+SELECT title, abstract, ts_rank(indexed, query) rank
+FROM documents2, plainto_tsquery('english', '{Q}') query
+ORDER BY rank DESC LIMIT {k};
+```
+
+En ella, lo que se hace es asignar un score a la similitud entre el documento (compuesto por el título y el abstract del documento)
+y la query. Se hizo uso de la funcion ```plainto_tsquery``` para transformar un texto escrito en lenguaje natural y convertirlo a un ```tsquery``` que puede ser analizado con ```ts_rank```.
+
+
+
+Para este proyecto no se consideró el uso del ```Generalized Inverted Index```. La razon principal es que el tipo de consulta propuesta 
+es un top-k de documentos ordenados por relevancia. Sin embargo, el ```gin``` filtra aquellos documentos que hacen match con la query, dejando abierta la posibilidad de que se filtren más documentos que el ```k``` requerido por la consulta.
+
 
 
 ## Frontend
