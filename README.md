@@ -88,7 +88,36 @@ También se utilizó la memoria secundaria para persistir cierta información re
 
 Para realizar una consulta óptima se ha considerado tanto la complejidad espacial como la complejidad computacional. Se tomó como guía el siguiente pseudocódigo:
 
-![Cosine_Score](https://github.com/ByJuanDiego/db2-project-2/assets/83974741/25d0d216-1b66-4417-a102-fde2342fa369)
+```py
+@measure_execution_time
+    def cosine_score(self, query: str, k: int) -> List[Tuple[int, float]]:
+        lengths: Dict[int, float] = self._obtain_lenghts_binary(self.length_file_name)
+
+        with open(self.index_file_name) as index_file, open(self.header_terms_file_name,
+                                                            mode="rb") as header_terms_file:
+            query_processed = self._preprocess(query)
+            scores: Dict[int, float] = {}
+            norm_q = 0
+            query_processed = dict(sorted(query_processed.items(), key=lambda x: x[0], reverse=False))
+            for query_term in query_processed:
+                tf_term_q: int = query_processed[query_term]
+                postings_list_term = self._binary_search_term(header_terms_file, index_file, query_term)
+                if postings_list_term is None:
+                    continue
+                df_term = len(postings_list_term)
+                tf_idf_t_q = math.log10(1 + tf_term_q) * math.log10(self.n / df_term)
+                norm_q += tf_idf_t_q ** 2
+                for d, tf_term_d in postings_list_term:
+                    tf_idf_t_d = math.log10(1 + tf_term_d) * math.log10(self.n / df_term)
+                    if d in scores:
+                        scores[d] += tf_idf_t_d * tf_idf_t_q
+                    else:
+                        scores.update({d: tf_idf_t_d * tf_idf_t_q})
+            norm_q = math.sqrt(norm_q)
+            for d in scores:
+                scores[d] = scores[d] / (lengths[d] * norm_q)
+            return list(sorted(scores.items(), key=lambda x: x[1], reverse=True))[0:k]
+```
 
 Para la implementación de las consultas, se consideró ya un cálculo de las normas de cada documento. Es inevitable manejar un arreglo en donde se guarden los documentos con sus respectivos scores, debido hay que considerar todos los documentos para posteriormente ordenarlos.
 En el caso de los cálculos del score por documento, solo se está iterando por cada término de la query en la colección total de términos de todos los documentos existentes. Básicamente se está aplicando una intersección debido a que estamos accediendo a memoria secundaria. Además de ello, cabe señalar que se está realizando una búsqueda binaria de un término en la colección total de términos. Esto es para optimizar de manera notable las lecturas en memoria secundaria.
