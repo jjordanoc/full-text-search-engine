@@ -164,6 +164,12 @@ Interfaz al buscar una query
 
 ## Conclusiones
 
+- Realizamos un uso eficiente de la memoria secundaria para crear el Indice Invertido para su posterior uso en la recuperacion de la documentos basada en el contenido de la query.
+
+- Comparamos los resultados entre nuestro Indice Invertido y los metodos de recuperacion de documentos que utliza Postgres. Llegamos a la conclusion que el sistema de ranking de Postgres puede llegar a tener multiples documentos con ranking 1, por lo que a veces le cuesta establecer un orden total en funcion de la relevancial abstract del documento.
+
+- El algoritmo de busqueda binaria optimiza de forma significativa el procesamiento de consultas sobre el Indice Invertido almacenado en memoria secundaria. 
+
 
 ## Autores
 
