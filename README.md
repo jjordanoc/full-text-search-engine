@@ -70,6 +70,12 @@ En la construcción del índice invertido en memoria secundaria se utilizó el a
 Se adaptó este algoritmo, que sirve para crear índices invertidos para el modelo de recuperación booleana, para realizar consultas por ranking.
 Para hacer esto, al momento de computar las listas de postings de cada término se agregó la frecuencia de término, que posteriormente nos ayudará a computar los pesos tf-idf para la búsqueda por texto. 
 
+Para implementar este algoritmo, se tomó como referencia la siguiente implementación de la función SPIMI-Invert: ![Referencia](https://slideplayer.com/slide/7351989/24/images/4/Merging+of+blocks+is+analogous+to+BSBI.jpg)
+
+Una vez se construyeron los índices invertidos locales usando SPIMI-Invert, se combinaron usando la estrategia de k-way merge en memoría secundaria.
+Se implementó usando un heap de tamaño k que guarda el mínimo término siendo procesado en cada documento.
+
+
 #### Estructura del índice
 
 Se tienen 2 archivos principales:
@@ -83,10 +89,6 @@ Asimismo, se crean otros 4 archivos auxiliares:
 2. Terms header file: Archivo que mapea posiciones lógicas de términos a posiciones físicas en el Index file. Se utiliza para hacer búsqueda binaria sobre el índice, que está ordenado.
 3. Size files: Archivos que guardan la cantidad de términos en el índice invertido y la cantidad total de documentos.
 
-Para implementar este algoritmo, se tomó como referencia la siguiente implementación de la función SPIMI-Invert: ![Referencia](https://slideplayer.com/slide/7351989/24/images/4/Merging+of+blocks+is+analogous+to+BSBI.jpg)
-
-Una vez se construyeron los índices invertidos locales usando SPIMI-Invert, se combinaron usando la estrategia de k-way merge en memoría secundaria.
-Se implementó usando un heap de tamaño k que guarda el mínimo término siendo procesado en cada documento.
 
 #### Diagrama del proceso
 
