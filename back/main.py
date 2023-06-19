@@ -36,7 +36,7 @@ async def obtener_datos(data: dict) -> dict:
 
     postgreSQL_select = f"""
         SELECT title, abstract, ts_rank(indexed, query) rank
-        FROM documents2, phraseto_tsquery('english', '{Q}') query
+        FROM documents2, plainto_tsquery('english', '{Q}') query
         ORDER BY rank DESC LIMIT {k};
     """
 
@@ -53,11 +53,9 @@ async def get_top_k_invidx(data: dict) -> dict:
     try:
         q = data.get('query')
         k = int(data.get('k')) if data.get('k') != '' else 1
-        print("aaa")
         index = InvertedIndex(raw_data_file_name=DATA_FILE_PATH, index_name=INDEX_NAME,
                               stoplist_file_name=STOPLIST_FILE_PATH)
         query_result = index.cosine_score(query=q, k=k)
-        print(query_result)
         response = index.get_documents_from_query_result(query_result)
         return {'data': response}
     except Exception as e:
