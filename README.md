@@ -1,5 +1,10 @@
 # Proyecto 2 BD2
 
+## Video explicativo
+
+Link del video:
+https://drive.google.com/file/d/1crUT1CHy8CX1tj3TdSDlCxwQIOi75kNb/view?usp=sharing
+
 ## Introducción 
 
 Para este proyecto, se nos ha pedido crear y un indice invertido utilizando el metodo de SPIMI (Single Pass In-Memory Indexing) en los abstracts de unos articulos web.
