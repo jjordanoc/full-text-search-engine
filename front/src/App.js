@@ -105,9 +105,30 @@ function App() {
     }
   };
 
+  const createIndex = async (e) => {
+    if(e) e.preventDefault();
+    try{
+      const response = await fetch('http://localhost:8000/create_index',{
+        method: 'POST',
+        headers: {
+          'Content-Type' : 'application/json',
+        },
+      });
+      if(response.ok){
+        console.log("Creacion Index") 
+      }
+      else{
+        console.log("error en la creacion de index")
+      }
+    } catch(error){
+      console.error("error: ", error);
+    } 
+  };
+
   return (
     <section className="app">
       <h2>Inverted Index</h2>
+      <button onClick={(e)=>{createIndex(e);}}>Crear Index</button>
       <form className="query">
         <input
           type="text"
