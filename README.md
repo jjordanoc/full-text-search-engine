@@ -53,6 +53,10 @@ Para implementar este algoritmo, se tomó como referencia la siguiente implement
 Una vez se construyeron los índices invertidos locales usando SPIMI-Invert, se combinaron usando la estrategia de k-way merge en memoría secundaria.
 Se implementó usando un heap de tamaño k que guarda el mínimo término siendo procesado en cada documento.
 
+#### Diagrama del proceso
+
+![image](https://github.com/ByJuanDiego/db2-project-2/assets/83974213/27b26126-7061-4b61-a36c-8b726f25a534)
+
 ### Manejo de memoria secundaria
 
 Se utilizó la memoria secundaria para guardar los resultados de los índices invertidos parciales en el SPIMI-Invert, y también en el merge.
@@ -66,10 +70,6 @@ Para realizar una consulta óptima se ha considerado tanto la complejidad espaci
 
 Para la implementación de las consultas, se consideró ya un cálculo de las normas de cada documento. Es inevitable manejar un arreglo en donde se guarden los documentos con sus respectivos scores, debido hay que considerar todos los documentos para posteriormente ordenarlos.
 En el caso de los cálculos del score por documento, solo se está iterando por cada término de la query en la colección total de términos de todos los documentos existentes. Básicamente se está aplicando una intersección debido a que estamos accediendo a memoria secundaria. Además de ello, cabe señalar que se está realizando una búsqueda binaria de un término en la colección total de términos. Esto es para optimizar de manera notable las lecturas en memoria secundaria.
-
-### Diagrama del proceso
-
-![image](https://github.com/ByJuanDiego/db2-project-2/assets/83974213/27b26126-7061-4b61-a36c-8b726f25a534)
 
 
 ## Frontend
