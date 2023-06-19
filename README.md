@@ -1,5 +1,14 @@
 # Proyecto 2 BD2
 
+## Organización del equipo
+
+|            Participante             |   Papel   |
+|:-----------------------------------:|:---------:|
+|  José Rafael Chachi Rodriguez       |  Backend  |
+|    Joaquín Francisco Jordán O'Connor|  Backend  |
+|     Juan Diego Castro Padilla       |  Frontend  |
+|   Juan Diego Lareda Yarma           | Frontend  |
+
 ## Video explicativo
 
 Link del video:
