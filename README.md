@@ -6,7 +6,7 @@
 |:-----------------------------------:|:---------:|
 |  José Rafael Chachi Rodriguez       |  Backend  |
 |    Joaquín Francisco Jordán O'Connor|  Backend  |
-|     Juan Diego Castro Padilla       |  Frontend  |
+|     Juan Diego Castro Padilla       |  Backend  |
 |   Juan Diego Lareda Yarma           | Frontend  |
 
 ## Video explicativo
