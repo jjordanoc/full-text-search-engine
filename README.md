@@ -40,7 +40,7 @@ Dataset extraído de [Kaggle](https://www.kaggle.com/datasets/Cornell-University
 
 ## Back-End
 
-Se utilizó el framework **FastAPI**, con el cual conectamos con el front-end a través de dos endpoints que ayudan a recuperar la informacion, los cuales devolverán el top K de nuestro indice creado y de PostgreSQL. Para ello, se interpreta la query enviada por el usuario y se devuelve la data a través de un JSON que contiene el titulo del documento, el abstract y el rank (en ese orden).
+Se utilizó el framework **FastAPI**, con el cual conectamos con el front-end a través de dos endpoints, los cuales devolverán el top K de nuestro indice creado y PostgreSQL. Para eso, se interpreta la query enviada por el usuario y se devuelve la data a través de un JSON.
 
 
 ### Endpoints
@@ -70,6 +70,19 @@ En la construcción del índice invertido en memoria secundaria se utilizó el a
 Se adaptó este algoritmo, que sirve para crear índices invertidos para el modelo de recuperación booleana, para realizar consultas por ranking.
 Para hacer esto, al momento de computar las listas de postings de cada término se agregó la frecuencia de término, que posteriormente nos ayudará a computar los pesos tf-idf para la búsqueda por texto. 
 
+#### Estructura del índice
+
+Se tienen 2 archivos principales:
+
+1. Index file: Archivo que guarda el término y su respectiva posting list. Ordenado por término en orden creciente. Las posting lists guardan pares (docID, term frequency).
+2. Length file: Archivo que guarda el documento y la norma de su vector de tf-idf. Este archivo es necesario para hacer un cálculo eficiente de la similitud por coseno.
+
+Asimismo, se crean otros 4 archivos auxiliares:
+
+1. Doc map file: Archivo que mapea posiciones lógicas de documentos a posiciones físicas en el archivo de datos crudo.
+2. Terms header file: Archivo que mapea posiciones lógicas de términos a posiciones físicas en el Index file. Se utiliza para hacer búsqueda binaria sobre el índice, que está ordenado.
+3. Size files: Archivos que guardan la cantidad de términos en el índice invertido y la cantidad total de documentos.
+
 Para implementar este algoritmo, se tomó como referencia la siguiente implementación de la función SPIMI-Invert: ![Referencia](https://slideplayer.com/slide/7351989/24/images/4/Merging+of+blocks+is+analogous+to+BSBI.jpg)
 
 Una vez se construyeron los índices invertidos locales usando SPIMI-Invert, se combinaron usando la estrategia de k-way merge en memoría secundaria.
@@ -77,16 +90,18 @@ Se implementó usando un heap de tamaño k que guarda el mínimo término siendo
 
 #### Diagrama del proceso
 
-![image](https://github.com/ByJuanDiego/db2-project-2/assets/83974213/27b26126-7061-4b61-a36c-8b726f25a534)
+<p align="center" width="100%">
+    <img width="33%" src="https://github.com/ByJuanDiego/db2-project-2/assets/83974213/27b26126-7061-4b61-a36c-8b726f25a534">
+</p>
 
 ### Manejo de memoria secundaria
 
 Se utilizó la memoria secundaria para guardar los resultados de los índices invertidos parciales en el SPIMI-Invert, y también en el merge.
 También se utilizó la memoria secundaria para persistir cierta información relevante como la cantidad de términos en el índice invertido y la cantidad de documentos total (que nos sirve posteriormente para calcular el tf-idf). 
 
-### Ejecución óptima de consultas
+### Ejecución óptimo de consultas
 
-Para realizar una consulta óptima se ha considerado tanto la complejidad espacial como la complejidad computacional. Se tomó en consideración que el cálculo de las normas por documento están precomputados.
+Para realizar una consulta óptima se ha considerado tanto la complejidad espacial como la complejidad computacional. Se tomó como guía el siguiente pseudocódigo:
 
 ```py
 @measure_execution_time
@@ -119,6 +134,7 @@ Para realizar una consulta óptima se ha considerado tanto la complejidad espaci
             return list(sorted(scores.items(), key=lambda x: x[1], reverse=True))[0:k]
 ```
 
+Para la implementación de las consultas, se consideró ya un cálculo de las normas de cada documento. Es inevitable manejar un arreglo en donde se guarden los documentos con sus respectivos scores, debido hay que considerar todos los documentos para posteriormente ordenarlos.
 En el caso de los cálculos del score por documento, solo se está iterando por cada término de la query en la colección total de términos de todos los documentos existentes. Básicamente se está aplicando una intersección debido a que estamos accediendo a memoria secundaria. Además de ello, cabe señalar que se está realizando una búsqueda binaria de un término en la colección total de términos. Esto es para optimizar de manera notable las lecturas en memoria secundaria.
 
 
