@@ -58,6 +58,14 @@ Se implementó usando un heap de tamaño k que guarda el mínimo término siendo
 Se utilizó la memoria secundaria para guardar los resultados de los índices invertidos parciales en el SPIMI-Invert, y también en el merge.
 También se utilizó la memoria secundaria para persistir cierta información relevante como la cantidad de términos en el índice invertido y la cantidad de documentos total (que nos sirve posteriormente para calcular el tf-idf). 
 
+### Ejecución óptimo de consultas
+
+Para realizar una consulta óptima se ha considerado tanto la complejidad espacial como la complejidad computacional. Se tomó como guía el siguiente pseudocódigo:
+
+![Cosine_Score](https://github.com/ByJuanDiego/db2-project-2/assets/83974741/25d0d216-1b66-4417-a102-fde2342fa369)
+
+Para la implementación de las consultas, se consideró ya un cálculo de las normas de cada documento. Es inevitable manejar un arreglo en donde se guarden los documentos con sus respectivos scores, debido hay que considerar todos los documentos para posteriormente ordenarlos.
+En el caso de los cálculos del score por documento, solo se está iterando por cada término de la query en la colección total de términos de todos los documentos existentes. Básicamente se está aplicando una intersección debido a que estamos accediendo a memoria secundaria. Además de ello, cabe señalar que se está realizando una búsqueda binaria de un término en la colección total de términos. Esto es para optimizar de manera notable las lecturas en memoria secundaria.
 
 ## Frontend
 
