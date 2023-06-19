@@ -67,6 +67,11 @@ Para realizar una consulta óptima se ha considerado tanto la complejidad espaci
 Para la implementación de las consultas, se consideró ya un cálculo de las normas de cada documento. Es inevitable manejar un arreglo en donde se guarden los documentos con sus respectivos scores, debido hay que considerar todos los documentos para posteriormente ordenarlos.
 En el caso de los cálculos del score por documento, solo se está iterando por cada término de la query en la colección total de términos de todos los documentos existentes. Básicamente se está aplicando una intersección debido a que estamos accediendo a memoria secundaria. Además de ello, cabe señalar que se está realizando una búsqueda binaria de un término en la colección total de términos. Esto es para optimizar de manera notable las lecturas en memoria secundaria.
 
+### Diagrama del proceso
+
+![image](https://github.com/ByJuanDiego/db2-project-2/assets/83974213/27b26126-7061-4b61-a36c-8b726f25a534)
+
+
 ## Frontend
 
 Se utilizó React para la elaboración de la interfaz. Aquí, el usuario colocará la query y el top k documentos a obtener. Al presionar el botón de **enviar**, se realizará una conexión con las funciones del back-end (una para nuestro índice invertido y otra para Postgres), donde la página esperara hasta que cada función devuelva un diccionario de los datos obtenidos. Sucesivamente, se mostrarán dichos resultados en formato de tabla, con el tiempo de consulta de cada uno.
