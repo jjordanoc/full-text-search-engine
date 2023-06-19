@@ -120,6 +120,11 @@ retorna un top-k de documentos ordenados por relevancia. Sin embargo, el ```gin`
 
 Se utilizó React para la elaboración de la interfaz. Aquí, el usuario colocará la query y el top k documentos a obtener. Al presionar el botón de **enviar**, se realizará una conexión con las funciones del back-end (una para nuestro índice invertido y otra para Postgres), enviando como parámetros dichas variables. Seguidamente, la página esperará hasta que cada función devuelva un diccionario de los datos obtenidos, para después mostrarlos en formato de tabla, con el tiempo de consulta de cada uno.
 
+Conexión a la PostgreSQL 
+![image](https://github.com/ByJuanDiego/db2-project-2/assets/68095284/31d63862-bbfc-453c-a949-16bd85b91b1b)
+
+Conexión al índice creado localmente
+![image](https://github.com/ByJuanDiego/db2-project-2/assets/68095284/14de7688-9747-4c1a-9089-e50390fa0d18)
 
 Interfaz al buscar una query
 ![Resultado](https://github.com/ByJuanDiego/db2-project-2/assets/68095284/80be232e-59cb-49b6-9f71-52ec259d9983)
